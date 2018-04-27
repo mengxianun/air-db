@@ -1,0 +1,37 @@
+plugins {
+  id 'java-library'
+  id 'maven-publish'
+}
+
+dependencies {
+  implementation group: 'com.mxy.air', name: 'air-json', version: '1.0.0'
+  implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+  implementation group: 'com.google.guava', name: 'guava', version: '24.1-jre'
+  implementation group: 'com.google.inject', name: 'guice', version: '4.2.0'
+  implementation group: 'org.apache.tomcat', name: 'tomcat-jdbc', version: '9.0.7'
+}
+
+task sourceJar(type: Jar) {
+  from sourceSets.main.allJava
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      groupId 'com.mxy.air'
+      artifactId 'air-db'
+      version '1.0.0'
+
+      from components.java
+
+      artifact sourceJar {
+        classifier "sources"
+      }
+    }
+  }
+}
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}

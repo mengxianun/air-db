@@ -5,7 +5,7 @@ plugins {
 compileJava.options.encoding = 'UTF-8'
 
 dependencies {
-  implementation group: 'com.mxy.air', name: 'air-json', version: '1.0.0'
+  api group: 'com.mxy.air', name: 'air-json', version: '1.0.0'
   implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
   implementation group: 'com.google.guava', name: 'guava', version: '24.1-jre'
   implementation group: 'com.google.inject', name: 'guice', version: '4.2.0'

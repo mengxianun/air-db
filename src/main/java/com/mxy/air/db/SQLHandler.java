@@ -64,6 +64,7 @@ public class SQLHandler {
 		throw new DbException("操作类型错误[" + type + "]");
 	}
 
+	@Transactional
 	public String detail(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
@@ -73,6 +74,7 @@ public class SQLHandler {
 		return new JSONObject(detail).toString();
 	}
 
+	@Transactional
 	public String query(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;

@@ -2,6 +2,7 @@ plugins {
   id 'java-library'
   id 'maven-publish'
 }
+compileJava.options.encoding = 'UTF-8'
 
 dependencies {
   implementation group: 'com.mxy.air', name: 'air-json', version: '1.0.0'

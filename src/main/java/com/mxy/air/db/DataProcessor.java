@@ -24,7 +24,7 @@ import com.google.inject.Inject;
 public class DataProcessor {
 
 	@Inject
-	private SQLRunner runner;
+	private SQLSession sqlSession;
 
 	/**
 	 * 对请求数据做验证和处理
@@ -93,12 +93,12 @@ public class DataProcessor {
 			boolean exist = false;
 			if (builder instanceof Insert) {
 				SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value).build();
-				exist = runner.detail(select.sql(), select.params().toArray()) != null;
+				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 			} else if (builder instanceof Update) {
 				// update操作唯一性验证排除自身, 通过where和params定位自身, 再reverse排除自身, 再equal查询其他包含该属性的记录
 				SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
 						.whereParams(builder.whereParams()).reverse().equal(column, value).build();
-				exist = runner.detail(select.sql(), select.params().toArray()) != null;
+				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 			}
 			if (exist) {
 				throw new DbException("记录 " + column + "[" + value + "] 已存在");

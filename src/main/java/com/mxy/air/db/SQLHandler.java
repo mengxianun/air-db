@@ -28,17 +28,13 @@ import com.google.inject.name.Named;
 public class SQLHandler {
 
 	@Inject
-	private SQLRunner runner;
+	private SQLSession sqlSession;
 
 	@Inject
 	private DataProcessor processor;
 
 	@Inject
 	private DataRenderer renderer;
-
-	@Inject
-	@Named("config")
-	private JSONObject config;
 
 	@Inject
 	@Named("tableConfigs")
@@ -64,28 +60,26 @@ public class SQLHandler {
 		throw new DbException("操作类型错误[" + type + "]");
 	}
 
-	@Transactional
 	public String detail(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
-		Map<String, Object> detail = runner.detail(builder.sql(), builder.params().toArray());
+		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
 		renderer.render(detail, columnsConfig);
 		return new JSONObject(detail).toString();
 	}
 
-	@Transactional
 	public String query(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
-		List<Map<String, Object>> list = runner.list(builder.sql(), builder.params().toArray());
+		List<Map<String, Object>> list = sqlSession.list(builder.sql(), builder.params().toArray());
 		// 结果渲染
 		renderer.render(list, columnsConfig);
 		// 分页查询, 查询总记录数
 		if (builder.limit() != null) {
 			String countSql = ((Select) builder).getCountSql();
 			Object[] countParams = ((Select) builder).whereParams().toArray();
-			long total = runner.count(countSql, countParams);
+			long total = sqlSession.count(countSql, countParams);
 			long[] limit = builder.limit();
 			JSONObject result = new JSONObject().put(START, limit[0]).put(END, limit[1]).put(TOTAL, total).put(DATAS,
 					list);
@@ -103,7 +97,7 @@ public class SQLHandler {
 		processor.process(builder, columnsConfig);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
 		builder.build();
-		Object key = runner.insert(builder.sql(), builder.params().toArray());
+		Object key = sqlSession.insert(builder.sql(), builder.params().toArray());
 		// 方法返回值, 多个数据库生成的id组成的数组, 包括关联表id
 		JSONObject result = new JSONObject(builder.values());
 		if (key != null) { // SQL操作返回主键为空, 则返回请求数据中的主键值
@@ -122,7 +116,7 @@ public class SQLHandler {
 		processor.process(builder, columnsConfig);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
 		builder.build();
-		int updateCount = runner.update(builder.sql(), builder.params().toArray());
+		int updateCount = sqlSession.update(builder.sql(), builder.params().toArray());
 		JSONArray result = new JSONArray();
 		result.add(updateCount);
 		return result.toString();
@@ -130,7 +124,7 @@ public class SQLHandler {
 
 	@Transactional
 	public String delete(SQLBuilder builder) throws SQLException {
-		int deleteCount = runner.delete(builder.sql(), builder.params().toArray());
+		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
 		return new JSONArray().add(deleteCount).toString();
 	}
 

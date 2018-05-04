@@ -100,7 +100,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @return
 	 * @throws SQLException
 	 */
-	private <T> T query(Connection conn, boolean closeConn, String sql, ResultSetHandler<T> handler, Object... params)
+	public <T> T query(Connection conn, boolean closeConn, String sql, ResultSetHandler<T> handler, Object... params)
 			throws SQLException {
 		T result = null;
 		PreparedStatement stmt = null;
@@ -190,7 +190,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @return 更新的行数
 	 * @throws SQLException
 	 */
-	private int update(Connection conn, boolean closeConn, String sql, Object... params) throws SQLException {
+	public int update(Connection conn, boolean closeConn, String sql, Object... params) throws SQLException {
 		int count = 0;
 		PreparedStatement stmt = null;
 		try {
@@ -288,7 +288,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @return 插入数据的主键
 	 * @throws SQLException
 	 */
-	private <T> T insert(Connection conn, boolean closeConn, String sql, ResultSetHandler<T> handler,
+	public <T> T insert(Connection conn, boolean closeConn, String sql, ResultSetHandler<T> handler,
 			Object... params) throws SQLException {
 		T result = null;
 		PreparedStatement stmt = null;

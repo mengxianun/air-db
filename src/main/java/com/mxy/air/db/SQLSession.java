@@ -1,5 +1,6 @@
 package com.mxy.air.db;
 
+import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.jdbc.JdbcRunner;
 import com.mxy.air.db.jdbc.handlers.MapHandler;
 import com.mxy.air.db.jdbc.handlers.MapListHandler;
@@ -14,6 +15,7 @@ import java.util.Map;
 /**
  * @author mengxiangyun
  */
+@SQLLog
 public class SQLSession {
 
 	private DataSource dataSource;

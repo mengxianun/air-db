@@ -15,7 +15,6 @@ import java.util.Map;
 /**
  * @author mengxiangyun
  */
-@SQLLog
 public class SQLSession {
 
 	private DataSource dataSource;
@@ -103,28 +102,34 @@ public class SQLSession {
 		}
 	}
 
+	@SQLLog
 	public Map<String, Object> detail(String sql, Object[] params) throws SQLException {
 		return runner.query(getConnection(), closeConnnection, sql, new MapHandler(), params);
 	}
 
+	@SQLLog
 	public List<Map<String, Object>> list(String sql, Object[] params) throws SQLException {
 		return runner.query(getConnection(), closeConnnection, sql, new MapListHandler(), params);
 	}
 
+	@SQLLog
 	public long count(String sql, Object[] params) throws SQLException {
 		Object result = runner.query(getConnection(), closeConnnection, sql, new ObjectHandler(), params);
 		long count = Long.parseLong(result.toString());
 		return count;
 	}
 
+	@SQLLog
 	public Object insert(String sql, Object[] params) throws SQLException {
 		return runner.insert(getConnection(), closeConnnection, sql, new ObjectHandler(), params);
 	}
 
+	@SQLLog
 	public int update(String sql, Object[] params) throws SQLException {
 		return runner.update(getConnection(), closeConnnection, sql, params);
 	}
 
+	@SQLLog
 	public int delete(String sql, Object[] params) throws SQLException {
 		return runner.update(getConnection(), closeConnnection, sql, params);
 	}

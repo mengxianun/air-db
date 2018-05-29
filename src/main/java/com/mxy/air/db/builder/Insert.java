@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.mxy.air.db.SQLBuilder;
+import com.mxy.air.json.JSONArray;
+import com.mxy.air.json.JSONObject;
 
 public class Insert extends SQLBuilder {
 
@@ -34,6 +36,9 @@ public class Insert extends SQLBuilder {
 			}
 			columnBuilder.append(column);
 			valueBuilder.append("?");
+			if (value instanceof JSONObject || value instanceof JSONArray) {
+				value = value.toString();
+			}
 			params.add(value);
 			comma = true;
 		}

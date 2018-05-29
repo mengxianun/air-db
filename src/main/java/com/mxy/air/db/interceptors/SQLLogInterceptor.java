@@ -32,6 +32,7 @@ public class SQLLogInterceptor implements MethodInterceptor {
 	private void print(String sql, Object[] params) {
 		if (params == null || params.length == 0) {
 			logger.info("SQL: {}", sql);
+			return;
 		}
 		if (!match(sql, params)) {
 			throw new DbException(String.format("SQL语句占位符数量与参数数量不匹配. SQL: %s.", sql));

@@ -116,26 +116,26 @@ public class Translator {
 				bind(Engine.class).in(Singleton.class);
 				bind(SQLHandler.class).in(Singleton.class);
 				bind(JdbcRunner.class).toInstance(new JdbcRunner(finalDataSource));
-				bind(SQLSession.class).toInstance(new SQLSession(finalDataSource));
+				try {
+					bind(SQLSession.class).toConstructor(SQLSession.class.getConstructor(DataSource.class));
+				} catch (NoSuchMethodException e) {
+					e.printStackTrace();
+				}
 				bind(DataProcessor.class).in(Singleton.class);
 				bind(DataRenderer.class).in(Singleton.class);
-				SQLLogInterceptor sqlLogInterceptor = new SQLLogInterceptor();
-				requestInjection(sqlLogInterceptor);
-				TransactionInterceptor transactionInterceptor = new TransactionInterceptor();
-				requestInjection(transactionInterceptor);
 				// 是否开启日志
 				if (config.getBoolean(DatacolorConfig.LOG)) {
 					// 类级别
-					bindInterceptor(Matchers.annotatedWith(SQLLog.class), Matchers.any(), sqlLogInterceptor);
+					bindInterceptor(Matchers.annotatedWith(SQLLog.class), Matchers.any(), new SQLLogInterceptor());
 					// 方法级别
-					bindInterceptor(Matchers.any(), Matchers.annotatedWith(SQLLog.class), sqlLogInterceptor);
+					bindInterceptor(Matchers.any(), Matchers.annotatedWith(SQLLog.class), new SQLLogInterceptor());
 				}
 				// 是否开启事务
 				if (config.getBoolean(DatacolorConfig.TRANSACTION)) {
 					bindInterceptor(Matchers.any(), Matchers.annotatedWith(Transactional.class),
-						transactionInterceptor);
+						new TransactionInterceptor());
 					bindInterceptor(Matchers.annotatedWith(Transactional.class), Matchers.any(),
-						transactionInterceptor);
+						new TransactionInterceptor());
 				}
 				// 全局配置
 				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);

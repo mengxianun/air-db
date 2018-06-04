@@ -10,9 +10,11 @@ import com.mxy.air.json.JSONObject;
 public class Insert extends SQLBuilder {
 
 	public Insert() {
+		statementType = StatementType.INSERT;
 	}
 
 	public Insert(String table, Map<String, Object> values, List<SQLBuilder> associations) {
+		this();
 		this.table = table;
 		this.values = values;
 		this.associations = associations;

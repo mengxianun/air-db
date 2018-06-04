@@ -10,9 +10,11 @@ import com.mxy.air.db.SQLBuilder;
 public class Update extends SQLBuilder {
 
 	public Update() {
+		statementType = StatementType.UPDATE;
 	}
 
 	public Update(String table, Map<String, Object> values, String where, List<Object> params) {
+		this();
 		this.table = table;
 		this.values = values;
 		this.where = where;

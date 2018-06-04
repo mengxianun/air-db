@@ -11,15 +11,18 @@ public class Select extends SQLBuilder {
 	private String countSql;
 
 	public Select() {
+		statementType = StatementType.SELECT;
 	}
 
 	public Select(String table) {
+		this();
 		this.table = table;
 	}
 
 	public Select(String table, List<Join> joins, String[] columns, String where, List<Object> params,
 			String[] groups, String[] orders,
 			long[] limit) {
+		this();
 		this.table = table;
 		this.joins = joins;
 		this.columns = columns;

@@ -7,9 +7,11 @@ import com.mxy.air.db.SQLBuilder;
 public class Delete extends SQLBuilder {
 
 	public Delete() {
+		statementType = StatementType.DELETE;
 	}
 
 	public Delete(String table, String where, List<Object> params) {
+		this();
 		this.table = table;
 		this.where = where;
 		this.params.addAll(params);

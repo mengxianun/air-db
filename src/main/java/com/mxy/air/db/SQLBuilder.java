@@ -20,6 +20,11 @@ import com.mxy.air.db.jdbc.Dialect;
  */
 public abstract class SQLBuilder {
     
+	protected enum StatementType {
+		SELECT, INSERT, UPDATE, DELETE
+	}
+
+	protected StatementType statementType;
 	// 数据库表名
     protected String table;
 	protected List<Join> joins;
@@ -72,6 +77,10 @@ public abstract class SQLBuilder {
     }
     
 	protected abstract SQLBuilder build();
+
+	public StatementType geStatementType() {
+		return statementType;
+	}
     
 	public boolean isEmpty(final CharSequence cs) {
 		return cs == null || cs.length() == 0;

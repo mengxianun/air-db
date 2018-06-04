@@ -1,23 +1,17 @@
 package com.mxy.air.db;
 
-import static com.mxy.air.db.PageResult.DATAS;
-import static com.mxy.air.db.PageResult.END;
-import static com.mxy.air.db.PageResult.START;
-import static com.mxy.air.db.PageResult.TOTAL;
-
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import com.mxy.air.db.DbException;
-import com.mxy.air.json.JSONArray;
-import com.mxy.air.json.JSONObject;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.Transactional;
 import com.mxy.air.db.builder.Select;
 import com.mxy.air.db.config.TableConfig;
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
+import com.mxy.air.json.JSONArray;
+import com.mxy.air.json.JSONObject;
 
 /**
  * SQL逻辑处理器
@@ -81,8 +75,7 @@ public class SQLHandler {
 			Object[] countParams = ((Select) builder).whereParams().toArray();
 			long total = sqlSession.count(countSql, countParams);
 			long[] limit = builder.limit();
-			JSONObject result = new JSONObject().put(START, limit[0]).put(END, limit[1]).put(TOTAL, total).put(DATAS,
-					list);
+			JSONObject result = PageResult.wrap(limit[0], limit[1], total, list);
 			return result.toString();
 		} else {
 			return new JSONArray(list).toString();

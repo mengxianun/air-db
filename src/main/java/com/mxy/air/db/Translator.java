@@ -18,7 +18,12 @@ import javax.sql.DataSource;
 
 import org.apache.tomcat.jdbc.pool.PoolProperties;
 
-import com.mxy.air.json.JSONObject;
+import com.google.inject.AbstractModule;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+import com.google.inject.Singleton;
+import com.google.inject.matcher.Matchers;
+import com.google.inject.name.Names;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.annotation.Transactional;
@@ -27,12 +32,7 @@ import com.mxy.air.db.interceptors.SQLLogInterceptor;
 import com.mxy.air.db.interceptors.TransactionInterceptor;
 import com.mxy.air.db.jdbc.DialectFactory;
 import com.mxy.air.db.jdbc.JdbcRunner;
-import com.google.inject.AbstractModule;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
-import com.google.inject.Singleton;
-import com.google.inject.matcher.Matchers;
-import com.google.inject.name.Names;
+import com.mxy.air.json.JSONObject;
 
 /**
  * 转换器, 将Json转换为SQL并执行数据库操作, 然后返回结果
@@ -83,7 +83,7 @@ public class Translator {
 	}
 
 	/**
-	 * 初始化SQLEngine和JdbcRunner. 如果用户指定了配置文件, 则按该配置文件解析配置, 如果指定的配置文件不存在, 则抛出异常.
+	 * 初始化Engine和JdbcRunner. 如果用户指定了配置文件, 则按该配置文件解析配置, 如果指定的配置文件不存在, 则抛出异常.
 	 * 如果用户没有指定配置文件, 则按默认配置文件解析配置. 如果默认配置文件不存在, 则不做处理也不抛出异常. 用户没有指定配置文件的情况下,
 	 * 默认配置文件可有可无 数据源: 用户通过构造函数传入的数据源优先, 如果没有传入则使用配置文件中配置的数据源信息
 	 */

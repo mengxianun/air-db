@@ -16,6 +16,7 @@ import static com.mxy.air.db.Structure.Type.DETAIL;
 import static com.mxy.air.db.Structure.Type.INSERT;
 import static com.mxy.air.db.Structure.Type.QUERY;
 import static com.mxy.air.db.Structure.Type.SELECT;
+import static com.mxy.air.db.Structure.Type.TRANSACTION;
 import static com.mxy.air.db.Structure.Type.UPDATE;
 import static com.mxy.air.db.Structure.Where.AND;
 import static com.mxy.air.db.Structure.Where.BETWEEN;
@@ -38,8 +39,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import com.mxy.air.json.JSONArray;
-import com.mxy.air.json.JSONObject;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.Structure.Where;
@@ -48,8 +49,8 @@ import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Native;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
+import com.mxy.air.json.JSONArray;
+import com.mxy.air.json.JSONObject;
 
 /**
  * 引擎
@@ -73,10 +74,10 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	public SQLBuilder parse(JSONObject object) {
+	public RequestAction parse(JSONObject object) {
 		if (object.containsKey(NATIVE)) {
 			if (config.getBoolean(DatacolorConfig.NATIVE)) {
-				return new Native(object.getString(NATIVE));
+				return new RequestAction(null, new Native(object.getString(NATIVE)));
 			} else {
 				throw new DbException("属性[" + NATIVE + "]被禁用");
 			}
@@ -90,26 +91,32 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	public SQLBuilder build(JSONObject object) {
+	public RequestAction build(JSONObject object) {
 		// 操作类型
 		Type type = getType(object);
+		SQLBuilder builder = null;
 		String table = object.getString(type);
 
 		switch (type) {
 		case DETAIL:
 		case QUERY:
 		case SELECT:
-			return select(table, object);
+			builder = select(table, object);
+			break;
 		case INSERT:
-			return insert(table, object);
+			builder = insert(table, object);
+			break;
 		case UPDATE:
-			return update(table, object);
+			builder = update(table, object);
+			break;
 		case DELETE:
-			return delete(table, object);
+			builder = delete(table, object);
+			break;
 
 		default:
-			return null;
+			break;
 		}
+		return new RequestAction(type, builder);
 	}
 
 	/**
@@ -137,6 +144,9 @@ public class Engine {
 		}
 		if (object.containsKey(DELETE)) {
 			types.add(DELETE);
+		}
+		if (object.containsKey(TRANSACTION)) {
+			types.add(TRANSACTION);
 		}
 		if (types.size() != 1) { // 操作类型只能是一个
 			throw new DbException("未指定操作类型或指定了多个操作类型");

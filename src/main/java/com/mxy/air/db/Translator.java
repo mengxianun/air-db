@@ -11,7 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.stream.Stream;
 
 import javax.sql.DataSource;
@@ -32,6 +34,7 @@ import com.mxy.air.db.interceptors.SQLLogInterceptor;
 import com.mxy.air.db.interceptors.TransactionInterceptor;
 import com.mxy.air.db.jdbc.DialectFactory;
 import com.mxy.air.db.jdbc.JdbcRunner;
+import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
 /**
@@ -117,7 +120,8 @@ public class Translator {
 				bind(SQLHandler.class).in(Singleton.class);
 				bind(JdbcRunner.class).toInstance(new JdbcRunner(finalDataSource));
 				try {
-					bind(SQLSession.class).toConstructor(SQLSession.class.getConstructor(DataSource.class));
+					bind(SQLSession.class).toConstructor(SQLSession.class.getConstructor(DataSource.class))
+							.in(Singleton.class);
 				} catch (NoSuchMethodException e) {
 					e.printStackTrace();
 				}
@@ -130,12 +134,15 @@ public class Translator {
 					// 方法级别
 					bindInterceptor(Matchers.any(), Matchers.annotatedWith(SQLLog.class), new SQLLogInterceptor());
 				}
+				// 绑定拦截器对象，使其可以注入其他绑定对象，如SQLSession
+				TransactionInterceptor transactionInterceptor = new TransactionInterceptor();
+				bind(TransactionInterceptor.class).toInstance(transactionInterceptor);
 				// 是否开启事务
 				if (config.getBoolean(DatacolorConfig.TRANSACTION)) {
 					bindInterceptor(Matchers.any(), Matchers.annotatedWith(Transactional.class),
-						new TransactionInterceptor());
+							transactionInterceptor);
 					bindInterceptor(Matchers.annotatedWith(Transactional.class), Matchers.any(),
-						new TransactionInterceptor());
+							transactionInterceptor);
 				}
 				// 全局配置
 				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);
@@ -251,9 +258,17 @@ public class Translator {
 	 */
 	public String translate(String json) throws SQLException {
 		JSONObject object = new JSONObject(json);
-		SQLBuilder builder = engine.parse(object);
 		Type type = engine.getType(object);
-		return handler.handle(type, builder);
+		if (type == Type.TRANSACTION) { // 事务操作
+			List<RequestAction> actions = new ArrayList<>();
+			JSONArray transArray = object.getArray(Type.TRANSACTION);
+			for (Object transObject : transArray.list()) {
+				actions.add(engine.parse((JSONObject) transObject));
+			}
+			return handler.transaction(actions);
+		}
+		RequestAction action = engine.parse(object);
+		return handler.handle(action);
 	}
 
 	/**

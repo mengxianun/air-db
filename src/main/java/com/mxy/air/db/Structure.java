@@ -75,7 +75,12 @@ public enum Structure {
 		/*
 		 * 删除
 		 */
-		DELETE;
+		DELETE,
+
+		/*
+		 * 事务
+		 */
+		TRANSACTION;
 		
 		public static Type from(String name) {
 			for (Type type : values()) {

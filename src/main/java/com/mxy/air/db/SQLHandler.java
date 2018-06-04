@@ -34,7 +34,9 @@ public class SQLHandler {
 	@Named("tableConfigs")
 	private JSONObject tableConfigs;
 
-	public String handle(Type type, SQLBuilder builder) throws SQLException {
+	public String handle(RequestAction action) throws SQLException {
+		Type type = action.getType();
+		SQLBuilder builder = action.getBuilder();
 		switch (type) {
 		case DETAIL:
 			return detail(builder);
@@ -54,6 +56,13 @@ public class SQLHandler {
 		throw new DbException("操作类型错误[" + type + "]");
 	}
 
+	/**
+	 * 查询单个记录
+	 * 
+	 * @param builder
+	 * @return
+	 * @throws SQLException
+	 */
 	public String detail(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
@@ -63,6 +72,13 @@ public class SQLHandler {
 		return new JSONObject(detail).toString();
 	}
 
+	/**
+	 * 查询多条记录
+	 * 
+	 * @param builder
+	 * @return
+	 * @throws SQLException
+	 */
 	public String query(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
@@ -82,6 +98,13 @@ public class SQLHandler {
 		}
 	}
 
+	/**
+	 * 插入一条记录
+	 * 
+	 * @param builder
+	 * @return
+	 * @throws SQLException
+	 */
 	@Transactional
 	public String insert(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
@@ -101,6 +124,13 @@ public class SQLHandler {
 		return result.toString();
 	}
 
+	/**
+	 * 更新一条记录
+	 * 
+	 * @param builder
+	 * @return
+	 * @throws SQLException
+	 */
 	@Transactional
 	public String update(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
@@ -115,10 +145,33 @@ public class SQLHandler {
 		return result.toString();
 	}
 
+	/**
+	 * 删除一条记录
+	 * 
+	 * @param builder
+	 * @return
+	 * @throws SQLException
+	 */
 	@Transactional
 	public String delete(SQLBuilder builder) throws SQLException {
 		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
 		return new JSONArray().add(deleteCount).toString();
+	}
+
+	/**
+	 * 事务操作
+	 * 
+	 * @param actions
+	 * @return
+	 * @throws SQLException
+	 */
+	@Transactional
+	public String transaction(List<RequestAction> actions) throws SQLException {
+		JSONArray result = new JSONArray();
+		for (RequestAction action : actions) {
+			result.add(handle(action));
+		}
+		return result.toString();
 	}
 
 }

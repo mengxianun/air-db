@@ -3,6 +3,7 @@ package com.mxy.air.db.jdbc;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -30,10 +31,22 @@ public class BasicRowProcessor implements RowProcessor {
 		int count = meta.getColumnCount();
 		for (int i = 1; i <= count; i++) {
 			String columnName = meta.getColumnLabel(i);
-			if (columnName == null) {
+			if (null == columnName || 0 == columnName.length()) {
 				columnName = meta.getColumnName(i);
 			}
-			result.put(columnName, rs.getObject(i));
+			Object columnValue;
+			int columnType = meta.getColumnType(i);
+			switch (columnType) {
+			case Types.BIT:
+			case Types.TINYINT:
+				columnValue = rs.getByte(i);
+				break;
+
+			default:
+				columnValue = rs.getObject(i);
+				break;
+			}
+			result.put(columnName, columnValue);
 		}
 		return result;
 	}

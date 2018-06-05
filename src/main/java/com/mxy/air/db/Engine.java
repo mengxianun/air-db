@@ -237,7 +237,8 @@ public class Engine {
 	}
 
 	/**
-	 * 解析join
+	 * 解析join 1. 字符串： "join":"nation" // 默认left 2. 对象： "join":{ "left":"nation" } 3.
+	 * 数组 "join":[ { "left":"nation" } ]
 	 * 
 	 * @param join
 	 *            包含join信息的JSON对象

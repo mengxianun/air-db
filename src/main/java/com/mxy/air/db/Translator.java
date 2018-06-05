@@ -86,9 +86,9 @@ public class Translator {
 	}
 
 	/**
-	 * 初始化Engine和JdbcRunner. 如果用户指定了配置文件, 则按该配置文件解析配置, 如果指定的配置文件不存在, 则抛出异常.
-	 * 如果用户没有指定配置文件, 则按默认配置文件解析配置. 如果默认配置文件不存在, 则不做处理也不抛出异常. 用户没有指定配置文件的情况下,
-	 * 默认配置文件可有可无 数据源: 用户通过构造函数传入的数据源优先, 如果没有传入则使用配置文件中配置的数据源信息
+	 * 如果用户指定了配置文件, 则按该配置文件解析配置, 如果指定的配置文件不存在, 则抛出异常. 如果用户没有指定配置文件, 则按默认配置文件解析配置.
+	 * 如果默认配置文件不存在, 则不做处理也不抛出异常. 用户没有指定配置文件的情况下, 默认配置文件可有可无 数据源: 用户通过构造函数传入的数据源优先,
+	 * 如果没有传入则使用配置文件中配置的数据源信息
 	 */
 	public Translator(DataSource dataSource, String configFile) {
 		// Datacolor配置, 初始为默认配置
@@ -96,7 +96,7 @@ public class Translator {
 		// 读取配置文件
 		JSONObject customConfig = read(configFile);
 		// 覆盖默认配置
-		config.copy(customConfig);
+		config.merge(customConfig);
 		// 读取数据库表配置文件
 		JSONObject tableConfigs = readTableConfigs(config.getString(DatacolorConfig.TABLE_CONFIG_PATH));
 		// 数据源
@@ -265,10 +265,10 @@ public class Translator {
 			for (Object transObject : transArray.list()) {
 				actions.add(engine.parse((JSONObject) transObject));
 			}
-			return handler.transaction(actions);
+			return handler.transaction(actions).toString();
 		}
 		RequestAction action = engine.parse(object);
-		return handler.handle(action);
+		return handler.handle(action).toString();
 	}
 
 	/**

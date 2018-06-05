@@ -7,9 +7,9 @@ import java.util.Map;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.Type;
-import com.mxy.air.db.annotation.Transactional;
 import com.mxy.air.db.builder.Select;
 import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.db.jdbc.trans.Atom;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -34,7 +34,7 @@ public class SQLHandler {
 	@Named("tableConfigs")
 	private JSONObject tableConfigs;
 
-	public String handle(RequestAction action) throws SQLException {
+	public Object handle(RequestAction action) throws SQLException {
 		Type type = action.getType();
 		SQLBuilder builder = action.getBuilder();
 		switch (type) {
@@ -63,13 +63,13 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public String detail(SQLBuilder builder) throws SQLException {
+	public Object detail(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
 		renderer.render(detail, columnsConfig);
-		return new JSONObject(detail).toString();
+		return new JSONObject(detail);
 	}
 
 	/**
@@ -79,7 +79,7 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public String query(SQLBuilder builder) throws SQLException {
+	public Object query(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		List<Map<String, Object>> list = sqlSession.list(builder.sql(), builder.params().toArray());
@@ -92,9 +92,9 @@ public class SQLHandler {
 			long total = sqlSession.count(countSql, countParams);
 			long[] limit = builder.limit();
 			JSONObject result = PageResult.wrap(limit[0], limit[1], total, list);
-			return result.toString();
+			return result;
 		} else {
-			return new JSONArray(list).toString();
+			return new JSONArray(list);
 		}
 	}
 
@@ -105,8 +105,8 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	@Transactional
-	public String insert(SQLBuilder builder) throws SQLException {
+	// @Transactional
+	public Object insert(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		// 验证并处理请求数据
@@ -121,7 +121,7 @@ public class SQLHandler {
 					: TableConfig.PRIMARY_KEY.toString();
 			result.put(keyColumn, key);
 		}
-		return result.toString();
+		return result;
 	}
 
 	/**
@@ -131,8 +131,8 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	@Transactional
-	public String update(SQLBuilder builder) throws SQLException {
+	// @Transactional
+	public Object update(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		// 验证并处理数据
@@ -142,7 +142,7 @@ public class SQLHandler {
 		int updateCount = sqlSession.update(builder.sql(), builder.params().toArray());
 		JSONArray result = new JSONArray();
 		result.add(updateCount);
-		return result.toString();
+		return result;
 	}
 
 	/**
@@ -152,10 +152,10 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	@Transactional
-	public String delete(SQLBuilder builder) throws SQLException {
+	// @Transactional
+	public Object delete(SQLBuilder builder) throws SQLException {
 		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
-		return new JSONArray().add(deleteCount).toString();
+		return new JSONArray().add(deleteCount);
 	}
 
 	/**
@@ -165,13 +165,25 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	@Transactional
-	public String transaction(List<RequestAction> actions) throws SQLException {
+	public Object transaction(List<RequestAction> actions) throws SQLException {
 		JSONArray result = new JSONArray();
-		for (RequestAction action : actions) {
-			result.add(handle(action));
-		}
-		return result.toString();
+
+		sqlSession.trans(new Atom() {
+
+			@Override
+			public void run() {
+				for (RequestAction action : actions) {
+					try {
+						result.add(handle(action));
+					} catch (SQLException e) {
+						throw new RuntimeException(e);
+					}
+				}
+
+			}
+		});
+
+		return result;
 	}
 
 }

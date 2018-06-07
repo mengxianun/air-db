@@ -277,14 +277,19 @@ public class Translator {
 			stream = Files.list(configPath);
 			stream.filter(Files::isRegularFile).forEach(path -> {
 				try {
-					String tableConfig = new String(Files.readAllBytes(path), Charset.defaultCharset());
-					if (tableConfig.isEmpty()) {
+					String tableConfigString = new String(Files.readAllBytes(path), Charset.defaultCharset());
+					if (tableConfigString.isEmpty()) {
 						return;
 					}
 					String filename = path.getFileName().toString();
-					// 文件名为表名
+					// 默认表名为文件名
 					String tableName = filename.substring(0, filename.lastIndexOf("."));
-					tableConfigs.put(tableName, new JSONObject(tableConfig));
+					JSONObject tableConfig = new JSONObject(tableConfigString);
+					// 如果用户配置了数据库表名
+					if (tableConfig.containsKey(TableConfig.TABLE)) {
+						tableName = tableConfig.getString(TableConfig.TABLE);
+					}
+					tableConfigs.put(tableName, tableConfig);
 				} catch (IOException e) {
 					throw new DbException(e);
 				}

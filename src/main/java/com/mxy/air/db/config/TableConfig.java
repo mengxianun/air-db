@@ -8,6 +8,11 @@ package com.mxy.air.db.config;
  */
 public enum TableConfig {
 
+	/**
+	 * 数据库表名
+	 */
+	TABLE,
+
 	/*
 	 * 主键
 	 */

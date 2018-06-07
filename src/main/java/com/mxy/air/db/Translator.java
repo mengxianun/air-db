@@ -151,7 +151,6 @@ public class Translator {
 				// 全局配置
 				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);
 				bind(JSONObject.class).annotatedWith(Names.named("tableConfigs")).toInstance(tableConfigs);
-				bind(AirContext.class).in(Singleton.class);
 			}
 
 		});

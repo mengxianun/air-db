@@ -5,7 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.mxy.air.db.DbException;
 import com.mxy.air.db.SQLBuilder;
+import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.json.JSONObject;
 
 public class Update extends SQLBuilder {
 
@@ -23,6 +26,12 @@ public class Update extends SQLBuilder {
 	}
     
 	public Update build() {
+		// 配置
+		JSONObject tableConfig = tableConfigs.getObject(table);
+		if (tableConfig == null) {
+			throw new DbException(String.format("数据库表[%s]不存在", table));
+		}
+		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		StringBuilder builder = new StringBuilder();
 		builder.append("update ").append(table).append(" set ");
 		StringBuilder columnBuilder = new StringBuilder();
@@ -31,6 +40,10 @@ public class Update extends SQLBuilder {
 		for (Entry<String, Object> entry : values.entrySet()) {
 			String column = entry.getKey();
 			Object value = entry.getValue();
+			// 如果字段不是数据库表中的字段, 就跳过
+			if (!columnConfigs.containsKey(column)) {
+				continue;
+			}
 			if (comma) {
 				columnBuilder.append(", ");
 			}

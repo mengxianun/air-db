@@ -18,7 +18,6 @@ public class Insert extends SQLBuilder {
 		this.table = table;
 		this.values = values;
 		this.associations = associations;
-		build();
 	}
     
 	public Insert build() {

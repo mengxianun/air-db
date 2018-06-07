@@ -49,11 +49,6 @@ public enum TableConfig {
 	public enum Association {
 
 		/*
-		 * 关联列
-		 */
-		COLUMN,
-
-		/*
 		 * 关联表
 		 */
 		TARGET_TABLE,

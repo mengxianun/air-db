@@ -116,6 +116,8 @@ public class Engine {
 		default:
 			break;
 		}
+		builder.setTableConfigs(tableConfigs);
+		builder.build();
 		return new RequestAction(type, builder);
 	}
 
@@ -162,10 +164,13 @@ public class Engine {
 	 * @return
 	 */
 	private SQLBuilder select(String table, JSONObject object) {
+		String[] tableAliasInfo = table.split(" ");
+		String tableName = tableAliasInfo[0];
+		String tableAlias = tableAliasInfo.length > 1 ? tableAliasInfo[1] : null;
 		// join
 		List<Join> joins = parseJoin(table, object.get(JOIN));
 		// 字段, 默认查询所有
-		String[] fields = object.containsKey(FIELDS) ? object.getArray(FIELDS).toStringArray() : new String[] { "*" };
+		String[] fields = object.containsKey(FIELDS) ? object.getArray(FIELDS).toStringArray() : null;
 		// SQL参数
 		List<Object> params = new ArrayList<>();
 		// where
@@ -182,7 +187,7 @@ public class Engine {
 			Object[] limitArray = object.getArray(LIMIT).array();
 			limit = Arrays.stream(limitArray).mapToLong(i -> Long.parseLong(i.toString())).toArray();
 		}
-		return SQLBuilder.select(table, joins, fields, where, params, groups, orders, limit);
+		return SQLBuilder.select(tableName, tableAlias, joins, fields, where, params, groups, orders, limit);
 	}
 
 	/**
@@ -237,8 +242,15 @@ public class Engine {
 	}
 
 	/**
-	 * 解析join 1. 字符串： "join":"nation" // 默认left 2. 对象： "join":{ "left":"nation" } 3.
-	 * 数组 "join":[ { "left":"nation" } ]
+	 * 解析join 
+	 *   1. 字符串： 
+	 *     "join":"nation" // 默认left 
+	 *   2. 对象：    
+	 *     "join":{ "left":"nation" } 
+	 *   3. 数组       
+	 *     "join":[ 
+	 *       { "left":"nation" } 
+	 *     ]
 	 * 
 	 * @param join
 	 *            包含join信息的JSON对象
@@ -254,18 +266,26 @@ public class Engine {
 			for (Object joinObject : joinArray.list()) {
 				if (joinObject instanceof JSONObject) {
 					Join parseJoin = parseJoin(table, (JSONObject) joinObject);
-					joins.add(parseJoin);
+					if (parseJoin != null) {
+						joins.add(parseJoin);
+					}
 				} else { // 字符串, join单个表, 默认left
 					Join parseJoin = parseJoin(table, joinObject.toString(), JoinType.LEFT);
-					joins.add(parseJoin);
+					if (parseJoin != null) {
+						joins.add(parseJoin);
+					}
 				}
 			}
 		} else if (join instanceof JSONObject) { // join单个表, key为JoinType, value为join的表
 			Join parseJoin = parseJoin(table, (JSONObject) join);
-			joins.add(parseJoin);
+			if (parseJoin != null) {
+				joins.add(parseJoin);
+			}
 		} else { // 字符串, join单个表, 默认left
 			Join parseJoin = parseJoin(table, join.toString(), JoinType.LEFT);
-			joins.add(parseJoin);
+			if (parseJoin != null) {
+				joins.add(parseJoin);
+			}
 		}
 		return joins;
 	}
@@ -286,35 +306,39 @@ public class Engine {
 	}
 
 	/**
-	 * 解析String类型join, 从join表的配置中找到关联关系
+	 * 解析String类型join, 从主表的配置中找到关联关系
 	 * 
-	 * @param table
-	 * @param joinTable
-	 * @param joinType
+	 * @param table 主表
+	 * @param joinTable join的表
+	 * @param joinType join类型
 	 * @return
 	 */
 	private Join parseJoin(String table, String joinTable, JoinType joinType) {
-		JSONObject joinTableConfig = tableConfigs.getObject(joinTable);
-		JSONObject joinColumnsConfig = joinTableConfig != null ? joinTableConfig.getObject(TableConfig.COLUMNS) : null;
-		if (joinColumnsConfig != null) {
-			// 循环join表的每个列, 找到配置了主表关联关系的配置
-			for (Entry<String, Object> columnConfigObject : joinColumnsConfig.entrySet()) {
-				JSONObject columnConfig = (JSONObject) columnConfigObject.getValue();
-				if (columnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
-					JSONObject association = columnConfig.getObject(TableConfig.Column.ASSOCIATION);
-					String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
-					// 如果join表的该字段配置的关联表不是主表table
-					if (!table.equals(targetTable)) {
-						continue;
-					}
-					// 主表的关联字段为join表中配置的target_column
-					String column = association.getString(TableConfig.Association.TARGET_COLUMN);
-					String targetColumn = columnConfigObject.getKey();
-					return new Join(table, column, joinTable, targetColumn, joinType);
+		String[] tableAliasInfo = table.split(" ");
+		String tableName = tableAliasInfo[0];
+		String tableAlias = tableAliasInfo.length > 1 ? tableAliasInfo[1] : null;
+		JSONObject tableConfig = tableConfigs.getObject(tableName);
+		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
+		String[] joinTableAliasInfo = joinTable.split(" ");
+		String joinTableName = joinTableAliasInfo[0];
+		String joinTableAlias = joinTableAliasInfo.length > 1 ? joinTableAliasInfo[1] : null;
+		// 循环主表的每个列, 找到配置了主表关联关系的配置
+		for (Entry<String, Object> columnConfigObject : columnsConfig.entrySet()) {
+			String column = columnConfigObject.getKey();
+			JSONObject columnConfig = (JSONObject) columnConfigObject.getValue();
+			if (columnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+				JSONObject association = columnConfig.getObject(TableConfig.Column.ASSOCIATION);
+				String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
+				// 如果主表的该字段配置的关联表不是joinTable
+				if (!joinTableName.equals(targetTable)) {
+					continue;
 				}
+				// 主表的关联字段为join表中配置的target_column
+				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
+				return new Join(tableName, tableAlias, column, joinTableName, joinTableAlias, targetColumn, joinType);
 			}
 		}
-		throw new DbException("配置文件中没有发现关联关系配置");
+		return null;
 	}
 
 	/**
@@ -387,7 +411,7 @@ public class Engine {
 					params.addAll(innerWhere.getValue());
 				} else { // 字符串类型条件
 					SimpleImmutableEntry<String, List<Object>> innerCondition = parseWhere(condition);
-					
+
 					builder.append(innerCondition.getKey());
 					params.addAll(innerCondition.getValue());
 				}
@@ -423,9 +447,10 @@ public class Engine {
 				params.add(processValue(values[1]));
 				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + BETWEEN.sql() + " ? and ?";
 			} else if (value.indexOf(IN.op()) > 0) { // in
-				List<Object> inParams = Arrays.stream(value.split(IN.op())).map(v -> processValue(v)).collect(Collectors.toList());
+				List<Object> inParams = Arrays.stream(value.split(IN.op())).map(v -> processValue(v))
+						.collect(Collectors.toList());
 				params.addAll(inParams);
-				// 将所有元素替换为?占位符  a,b,c -> ?,?,?
+				// 将所有元素替换为?占位符 a,b,c -> ?,?,?
 				value = value.replaceAll("((?!,).)*", "?").replaceAll("(\\?)+", "?");
 				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + IN.sql() + " (" + value + ")";
 			} else {

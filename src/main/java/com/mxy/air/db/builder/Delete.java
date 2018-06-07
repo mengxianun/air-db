@@ -16,7 +16,6 @@ public class Delete extends SQLBuilder {
 		this.where = where;
 		this.params.addAll(params);
 		this.whereParams.addAll(params);
-		build();
 	}
     
 	public Delete build() {

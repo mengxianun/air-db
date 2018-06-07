@@ -10,10 +10,12 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import javax.sql.DataSource;
@@ -30,10 +32,12 @@ import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.annotation.Transactional;
 import com.mxy.air.db.config.DatacolorConfig;
+import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.interceptors.SQLLogInterceptor;
 import com.mxy.air.db.interceptors.TransactionInterceptor;
 import com.mxy.air.db.jdbc.DialectFactory;
 import com.mxy.air.db.jdbc.JdbcRunner;
+import com.mxy.air.db.jdbc.handlers.MapListHandler;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -147,12 +151,67 @@ public class Translator {
 				// 全局配置
 				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);
 				bind(JSONObject.class).annotatedWith(Names.named("tableConfigs")).toInstance(tableConfigs);
+				bind(AirContext.class).in(Singleton.class);
 			}
 
 		});
 		this.handler = injector.getInstance(SQLHandler.class);
 		this.engine = injector.getInstance(Engine.class);
-		
+		try {
+			initTableInfo(dataSource, injector.getInstance(JdbcRunner.class), tableConfigs);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * 初始数据库表信息
+	 * @param dataSource
+	 * @param jdbcRunner
+	 * @param tableConfigs 用户配置的数据库表配置
+	 * @throws SQLException
+	 */
+	private void initTableInfo(DataSource dataSource, JdbcRunner jdbcRunner, JSONObject tableConfigs)
+			throws SQLException {
+		String dbName = getDatabaseName(dataSource);
+		String sql = "select * from information_schema.columns where table_schema = ?";
+		List<Map<String, Object>> tableInfos = jdbcRunner.query(sql, new MapListHandler(), dbName);
+		for (Map<String, Object> tableInfo : tableInfos) {
+			String tableName = tableInfo.get("TABLE_NAME").toString();
+			String column = tableInfo.get("COLUMN_NAME").toString();
+			if (tableConfigs.containsKey(tableName)) {
+				JSONObject tableConfig = tableConfigs.getObject(tableName);
+				if (tableConfig.containsKey(TableConfig.COLUMNS)) {
+					JSONObject columns = tableConfig.getObject(TableConfig.COLUMNS);
+					if (!columns.containsKey(column)) {
+						columns.put(column, new JSONObject());
+					}
+				} else {
+					JSONObject columns = new JSONObject();
+					columns.put(column, new JSONObject());
+					tableConfig.put(TableConfig.COLUMNS, columns);
+				}
+			} else {
+				JSONObject tableConfig = new JSONObject();
+				JSONObject columns = new JSONObject();
+				columns.put(column, new JSONObject());
+				tableConfig.put(TableConfig.COLUMNS, columns);
+				tableConfigs.put(tableName, tableConfig);
+			}
+		}
+	}
+
+	/**
+	 * 获取数据库名称
+	 * @param dataSource
+	 * @return
+	 */
+	public String getDatabaseName(DataSource dataSource) {
+		try (Connection conn = dataSource.getConnection()) {
+			return conn.getCatalog();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/**

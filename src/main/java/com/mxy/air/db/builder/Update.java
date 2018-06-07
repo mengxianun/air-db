@@ -20,7 +20,6 @@ public class Update extends SQLBuilder {
 		this.where = where;
 		this.params.addAll(params);
 		this.whereParams.addAll(params);
-		build();
 	}
     
 	public Update build() {

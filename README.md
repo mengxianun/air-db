@@ -378,6 +378,47 @@ where sex = 'male'
 "limit":[6, 10]
 ```
 
+### Transaction
+
+#### 说明
+
+​	事务操作，由 transaction 节点包裹多个JSON操作
+
+#### 类型格式
+
+```
+{
+	"transaction":[
+		request_json1,
+		request_json2
+	]
+}
+```
+
+#### 示例
+
+```
+{
+	"transaction":[
+		{
+			"insert":"person",
+			"values":{
+				"name":"li",
+				"age":22
+			}
+		},
+		{
+			"insert":"person",
+			"values":{
+				"name":"lei",
+				"age":25,
+				"phone":"19986523332"
+			}
+		}
+	]
+}
+```
+
 ### Native
 
 #### **说明**
@@ -501,13 +542,7 @@ user.json
 
 
 ```
-{
-	"select":"user db1.u",
-	"join":{
-        "left":"db2.user_info ui"
-	}
-	"where":["u.name=li","ui.age=20"]
-}
+
 
 
 

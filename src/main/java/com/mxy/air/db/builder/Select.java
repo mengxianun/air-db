@@ -43,7 +43,7 @@ public class Select extends SQLBuilder {
 	public Select build() {
 		// 主表的配置
 		JSONObject tableConfig = tableConfigs.getObject(table);
-		JSONObject columnConfigs = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
+		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		// SQL字符串
     	StringBuilder builder = new StringBuilder();
 		// 表字符串

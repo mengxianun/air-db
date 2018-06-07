@@ -108,16 +108,16 @@ public class SQLHandler {
 	// @Transactional
 	public Object insert(SQLBuilder builder) throws SQLException {
 		JSONObject tableConfig = tableConfigs.getObject(builder.table());
-		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		// 验证并处理请求数据
-		processor.process(builder, columnsConfig);
+		processor.process(builder);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
 		builder.build();
 		Object key = sqlSession.insert(builder.sql(), builder.params().toArray());
 		// 方法返回值, 多个数据库生成的id组成的数组, 包括关联表id
 		JSONObject result = new JSONObject(builder.values());
 		if (key != null) { // SQL操作返回主键为空, 则返回请求数据中的主键值
-			String keyColumn = tableConfig != null ? tableConfig.getString(TableConfig.PRIMARY_KEY)
+			String keyColumn = tableConfig.containsKey(TableConfig.PRIMARY_KEY)
+					? tableConfig.getString(TableConfig.PRIMARY_KEY)
 					: TableConfig.PRIMARY_KEY.toString();
 			result.put(keyColumn, key);
 		}
@@ -133,10 +133,8 @@ public class SQLHandler {
 	 */
 	// @Transactional
 	public Object update(SQLBuilder builder) throws SQLException {
-		JSONObject tableConfig = tableConfigs.getObject(builder.table());
-		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		// 验证并处理数据
-		processor.process(builder, columnsConfig);
+		processor.process(builder);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
 		builder.build();
 		int updateCount = sqlSession.update(builder.sql(), builder.params().toArray());

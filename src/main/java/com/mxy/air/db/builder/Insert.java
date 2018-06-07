@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.mxy.air.db.SQLBuilder;
+import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -21,6 +22,9 @@ public class Insert extends SQLBuilder {
 	}
     
 	public Insert build() {
+		// 配置
+		JSONObject tableConfig = tableConfigs.getObject(table);
+		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		StringBuilder builder = new StringBuilder();
 		builder.append("insert into ").append(table);
 		StringBuilder columnBuilder = new StringBuilder();
@@ -31,6 +35,10 @@ public class Insert extends SQLBuilder {
 		for (Map.Entry<String, Object> entry : values.entrySet()) {
 			String column = entry.getKey();
 			Object value = entry.getValue();
+			// 如果字段不是数据库表中的字段, 就跳过
+			if (!columnConfigs.containsKey(column)) {
+				continue;
+			}
 			if (comma) {
 				columnBuilder.append(", ");
 				valueBuilder.append(", ");

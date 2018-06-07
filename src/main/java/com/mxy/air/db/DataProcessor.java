@@ -7,13 +7,14 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.mxy.air.db.DbException;
-import com.mxy.air.json.JSONObject;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Update;
+import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.config.TableConfig.Keyword;
-import com.google.inject.Inject;
+import com.mxy.air.json.JSONObject;
 
 /**
  * 请求数据处理器, 依据数据库表的配置对数据做验证和处理
@@ -26,6 +27,10 @@ public class DataProcessor {
 	@Inject
 	private SQLSession sqlSession;
 
+	@Inject
+	@Named("tableConfigs")
+	private JSONObject tableConfigs;
+
 	/**
 	 * 对请求数据做验证和处理
 	 * 
@@ -35,16 +40,15 @@ public class DataProcessor {
 	 * @return
 	 * @throws SQLException
 	 */
-	public void process(SQLBuilder builder, JSONObject columnsConfig)
+	public void process(SQLBuilder builder)
 			throws SQLException {
-		if (columnsConfig == null) {
-			return;
-		}
+		JSONObject tableConfig = tableConfigs.getObject(builder.table);
+		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		// 原始值
 		Map<String, Object> values = builder.values();
 		// 经过处理的值, 初始为原始值
 		Map<String, Object> processValues = new HashMap<>(values);
-		for (Map.Entry<String, Object> columnConfig : columnsConfig.entrySet()) {
+		for (Map.Entry<String, Object> columnConfig : columnConfigs.entrySet()) {
 			String column = columnConfig.getKey();
 			JSONObject config = (JSONObject) columnConfig.getValue();
 			Object value = values.get(column);
@@ -92,12 +96,16 @@ public class DataProcessor {
 		if (columnConfig.containsKey(Column.UNIQUE) && columnConfig.getBoolean(Column.UNIQUE)) { // 字段唯一性验证
 			boolean exist = false;
 			if (builder instanceof Insert) {
-				SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value).build();
+				SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value);
+				select.setTableConfigs(tableConfigs);
+				select.build();
 				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 			} else if (builder instanceof Update) {
 				// update操作唯一性验证排除自身, 通过where和params定位自身, 再reverse排除自身, 再equal查询其他包含该属性的记录
 				SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
-						.whereParams(builder.whereParams()).reverse().equal(column, value).build();
+						.whereParams(builder.whereParams()).reverse().equal(column, value);
+				select.setTableConfigs(tableConfigs);
+				select.build();
 				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 			}
 			if (exist) {

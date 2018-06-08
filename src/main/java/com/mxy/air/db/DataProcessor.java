@@ -5,10 +5,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
+import com.mxy.air.db.SQLBuilder.StatementType;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.config.TableConfig;
@@ -89,7 +91,22 @@ public class DataProcessor {
 				}
 				return defaultValue;
 			} else if (columnConfig.containsKey(Column.REQUIRED) && columnConfig.getBoolean(Column.REQUIRED)) { // 必填
-				throw new DbException("字段 [" + column + "] 必填");
+				// 查询将要更新的数据库记录, 看该必填字段是否已经有值, 已经有值的情况下, update时该字段可以不填
+				if (builder.statementType == StatementType.UPDATE) {
+					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
+							.params(builder.whereParams());
+					select.setTableConfigs(tableConfigs);
+					select.build();
+					List<Map<String, Object>> updateRecords = sqlSession.list(select.sql(), select.params().toArray());
+					for (Map<String, Object> record : updateRecords) {
+						Object recordColumnValue = record.get(column);
+						if (recordColumnValue == null || recordColumnValue.toString().equals("")) {
+							throw new DbException("字段 [" + column + "] 必填");
+						}
+					}
+				} else {
+					throw new DbException("字段 [" + column + "] 必填");
+				}
 			}
 			return null;
 		}

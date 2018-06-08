@@ -9,7 +9,6 @@ import java.util.Map;
 
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
-import com.mxy.air.db.SQLBuilder.StatementType;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.config.TableConfig;
@@ -90,13 +89,6 @@ public class DataProcessor {
 				}
 				return defaultValue;
 			} else if (columnConfig.containsKey(Column.REQUIRED) && columnConfig.getBoolean(Column.REQUIRED)) { // 必填
-				if (builder.statementType == StatementType.UPDATE) {
-					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where());
-					select.setTableConfigs(tableConfigs);
-					select.build();
-					// ????????????????????????????????????
-					//					sqlSession.detail(select.sql(), select.params().toArray()) != null;
-				}
 				throw new DbException("字段 [" + column + "] 必填");
 			}
 			return null;

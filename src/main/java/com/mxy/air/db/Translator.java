@@ -235,41 +235,6 @@ public class Translator {
 	}
 
 	/**
-	 * 读取配置文件
-	 * 
-	 * @param configFile
-	 * @return
-	 * @throws IOException 
-	 * @throws URISyntaxException 
-	 */
-	@Deprecated
-	private JSONObject read(String configFile) throws IOException, URISyntaxException {
-		File file = new File(configFile);
-		if (file.isAbsolute()) { // 绝对路径
-			String json = new String(Files.readAllBytes(Paths.get(configFile)), Charset.defaultCharset());
-			return new JSONObject(json);
-		} else {
-			URL url = this.getClass().getClassLoader().getResource(configFile);
-			if (url == null) {
-				return new JSONObject();
-			}
-			Path configPath = null;
-			URI uri = url.toURI();
-			if (uri.toString().startsWith("jar:file:/") && uri.toString().indexOf("jar!") != -1) { // jar
-				String[] pathArray = url.toString().split("!", 2);
-				try (FileSystem fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>())) {
-					configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
-				}
-			} else {
-				configPath = Paths.get(uri);
-			}
-			String json = new String(Files.readAllBytes(configPath), Charset.defaultCharset());
-			return new JSONObject(json);
-
-		}
-	}
-
-	/**
 	 * 读取数据库表配置文件
 	 * 
 	 * @param tablesPath

@@ -7,7 +7,9 @@ import java.util.Map;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.Type;
+import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Select;
+import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.jdbc.trans.Atom;
 import com.mxy.air.json.JSONArray;
@@ -29,6 +31,10 @@ public class SQLHandler {
 
 	@Inject
 	private DataRenderer renderer;
+
+	@Inject
+	@Named("config")
+	private JSONObject config;
 
 	@Inject
 	@Named("tableConfigs")
@@ -133,6 +139,19 @@ public class SQLHandler {
 	 */
 	// @Transactional
 	public Object update(SQLBuilder builder) throws SQLException {
+		if (config.getBoolean(DatacolorConfig.UPSERT)) { // 如果不存在就新增记录
+			// 查询数据库是否存在
+			Select select = SQLBuilder.select(builder.table());
+			select.where(builder.where()).params(builder.whereParams());
+			select.setTableConfigs(tableConfigs);
+			select.build();
+			Map<String, Object> detail = sqlSession.detail(select.sql(), select.params().toArray());
+			if (detail == null) {
+				Insert insert = SQLBuilder.insert(builder.table(), builder.values());
+				insert.setTableConfigs(tableConfigs);
+				return insert(insert);
+			}
+		}
 		// 验证并处理数据
 		processor.process(builder);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数

@@ -64,9 +64,6 @@ public abstract class SQLBuilder {
 	// where条件语句参数
 	protected List<Object> whereParams = new ArrayList<>();
 
-	// 关联
-	protected List<SQLBuilder> associations;
-
 	// 方言
 	protected static Dialect dialect;
 
@@ -76,7 +73,7 @@ public abstract class SQLBuilder {
 		SQLBuilder.dialect = dialect;
 	}
 
-	public static SQLBuilder select(String table) {
+	public static Select select(String table) {
 		return new Select(table);
 	}
 
@@ -89,10 +86,7 @@ public abstract class SQLBuilder {
     }
 
 	public static Insert insert(String table, Map<String, Object> values) {
-		return insert(table, values, null);
-	}
-	public static Insert insert(String table, Map<String, Object> values, List<SQLBuilder> associations) {
-		return new Insert(table, values, associations);
+		return new Insert(table, values);
 	}
 
 	public static Update update(String table, Map<String, Object> values, String where, List<Object> params) {
@@ -137,10 +131,6 @@ public abstract class SQLBuilder {
         }
         return true;
     }
-
-	public boolean containsAssociations() {
-		return associations != null && !associations.isEmpty();
-	}
 
 	public SQLBuilder equal(String column, Object value) {
 		where = isEmpty(where) ? "" : where + " and ";
@@ -273,10 +263,6 @@ public abstract class SQLBuilder {
 		this.whereParams = whereParams;
 		this.params = whereParams;
 		return this;
-	}
-
-	public List<SQLBuilder> associations() {
-		return associations;
 	}
 
 	public void setTableConfigs(JSONObject tableConfigs) {

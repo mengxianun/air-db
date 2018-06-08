@@ -24,10 +24,6 @@ public enum Structure {
 	 */
 	VALUES,
 	/*
-	 * 关联, 插入时可以通过此配置进行关联插入
-	 */
-	ASSOCIATION,
-	/*
 	 * 过滤条件
 	 */
 	WHERE,
@@ -138,11 +134,18 @@ public enum Structure {
 		}
 	}
 
-	/**
+	/*
 	 * 过滤条件
 	 */
 	public enum Where {
 		
+	}
+
+	/*
+	 * 运算符
+	 */
+	public enum Operator {
+
 		/*
 		 * 运算符
 		 */
@@ -172,11 +175,11 @@ public enum Structure {
 		/*
 		 * 运算符对应的SQL写法
 		 */
-		private String sqlStyle;
+		private String sql;
 		
-		private Where(String op, String sqlStyle) {
+		private Operator(String op, String sql) {
 			this.op = op;
-			this.sqlStyle = sqlStyle;
+			this.sql = sql;
 		}
 		
 		public String op() {
@@ -184,17 +187,18 @@ public enum Structure {
 		}
 		
 		public String sql() {
-			return this.sqlStyle;
+			return this.sql;
 		}
 		
-		public static Where from(String op) {
-			for (Where operator : values()) {
+		public static Operator from(String op) {
+			for (Operator operator : values()) {
 				if (operator.op().equalsIgnoreCase(op)) {
 					return operator;
 				}
 			}
 			return null;
 		}
+
 	}
 	
 	/**

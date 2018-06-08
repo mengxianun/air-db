@@ -1,6 +1,5 @@
 package com.mxy.air.db;
 
-import static com.mxy.air.db.Structure.ASSOCIATION;
 import static com.mxy.air.db.Structure.FIELDS;
 import static com.mxy.air.db.Structure.GROUP;
 import static com.mxy.air.db.Structure.JOIN;
@@ -9,6 +8,17 @@ import static com.mxy.air.db.Structure.NATIVE;
 import static com.mxy.air.db.Structure.ORDER;
 import static com.mxy.air.db.Structure.VALUES;
 import static com.mxy.air.db.Structure.WHERE;
+import static com.mxy.air.db.Structure.Operator.AND;
+import static com.mxy.air.db.Structure.Operator.BETWEEN;
+import static com.mxy.air.db.Structure.Operator.EQUAL;
+import static com.mxy.air.db.Structure.Operator.GT;
+import static com.mxy.air.db.Structure.Operator.GTE;
+import static com.mxy.air.db.Structure.Operator.IN;
+import static com.mxy.air.db.Structure.Operator.LIKE;
+import static com.mxy.air.db.Structure.Operator.LT;
+import static com.mxy.air.db.Structure.Operator.LTE;
+import static com.mxy.air.db.Structure.Operator.NOT;
+import static com.mxy.air.db.Structure.Operator.NOT_EQUAL;
 import static com.mxy.air.db.Structure.Order.MINUS;
 import static com.mxy.air.db.Structure.Order.PLUS;
 import static com.mxy.air.db.Structure.Type.DELETE;
@@ -18,17 +28,6 @@ import static com.mxy.air.db.Structure.Type.QUERY;
 import static com.mxy.air.db.Structure.Type.SELECT;
 import static com.mxy.air.db.Structure.Type.TRANSACTION;
 import static com.mxy.air.db.Structure.Type.UPDATE;
-import static com.mxy.air.db.Structure.Where.AND;
-import static com.mxy.air.db.Structure.Where.BETWEEN;
-import static com.mxy.air.db.Structure.Where.EQUAL;
-import static com.mxy.air.db.Structure.Where.GT;
-import static com.mxy.air.db.Structure.Where.GTE;
-import static com.mxy.air.db.Structure.Where.IN;
-import static com.mxy.air.db.Structure.Where.LIKE;
-import static com.mxy.air.db.Structure.Where.LT;
-import static com.mxy.air.db.Structure.Where.LTE;
-import static com.mxy.air.db.Structure.Where.NOT;
-import static com.mxy.air.db.Structure.Where.NOT_EQUAL;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
@@ -42,9 +41,8 @@ import java.util.stream.Collectors;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.JoinType;
+import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
-import com.mxy.air.db.Structure.Where;
-import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Native;
 import com.mxy.air.db.config.DatacolorConfig;
@@ -200,8 +198,7 @@ public class Engine {
 	private SQLBuilder insert(String table, JSONObject object) {
 		// 插入的值
 		Map<String, Object> values = object.containsKey(VALUES) ? object.getObject(VALUES).map() : null;
-		List<SQLBuilder> associations = parseAssociations(object.getObject(ASSOCIATION), INSERT);
-		return SQLBuilder.insert(table, values, associations);
+		return SQLBuilder.insert(table, values);
 
 	}
 
@@ -342,42 +339,6 @@ public class Engine {
 	}
 
 	/**
-	 * 解析关联
-	 * 
-	 * @param association
-	 * @param type
-	 * @return
-	 */
-	private List<SQLBuilder> parseAssociations(JSONObject association, Type type) {
-		if (association == null) {
-			return null;
-		}
-		List<SQLBuilder> associations = new ArrayList<>();
-		for (Entry<String, Object> entry : association.entrySet()) {
-			String table = entry.getKey();
-			JSONObject values = (JSONObject) entry.getValue();
-			switch (type) {
-			case INSERT:
-				Insert insert = SQLBuilder.insert(table, values.map());
-				associations.add(insert);
-				break;
-			case UPDATE:
-				// Update update = SQLBuilder.update(table, values, where, params);
-				// associations.add(update);
-				break;
-			case DELETE:
-				// Delete delete = SQLBuilder.delete(table, where, params);
-				// associations.add(delete);
-				break;
-
-			default:
-				break;
-			}
-		}
-		return associations;
-	}
-
-	/**
 	 * 解析where
 	 * 
 	 * @param where
@@ -436,7 +397,7 @@ public class Engine {
 		}
 		String sql;
 		List<Object> params = new ArrayList<>();
-		Where op = parseOperator(condition);
+		Operator op = parseOperator(condition);
 		String[] kv = condition.split(op.op());
 		String field = kv[0];
 		String value = kv[1];
@@ -470,7 +431,7 @@ public class Engine {
 	 * @param condition
 	 * @return
 	 */
-	private Where parseOperator(String condition) {
+	private Operator parseOperator(String condition) {
 		if (condition.indexOf(LIKE.op()) > 0) { // like
 			return LIKE;
 		} else if (condition.indexOf(LTE.op()) > 0) {// 小于等于

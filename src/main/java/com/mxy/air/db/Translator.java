@@ -1,5 +1,6 @@
 package com.mxy.air.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -95,14 +96,34 @@ public class Translator {
 	 * 如果没有传入则使用配置文件中配置的数据源信息
 	 */
 	public Translator(DataSource dataSource, String configFile) {
+		/*
+		 * 读取全局配置文件
+		 */
 		// Datacolor配置, 初始为默认配置
 		JSONObject config = new JSONObject(DatacolorConfig.toMap());
 		// 读取配置文件
-		JSONObject customConfig = read(configFile);
+		JSONObject customConfig;
+		try {
+			customConfig = read(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
+		} catch (IOException | URISyntaxException e) {
+			throw new DbException(e);
+		}
 		// 覆盖默认配置
 		config.merge(customConfig);
+
+		/**
+		 * 读取数据库表配置文件
+		 */
 		// 读取数据库表配置文件
-		JSONObject tableConfigs = readTableConfigs(config.getString(DatacolorConfig.TABLE_CONFIG_PATH));
+		String tablesConfigPath = config.containsKey(DatacolorConfig.TABLES_CONFIG_PATH)
+				? config.getString(DatacolorConfig.TABLES_CONFIG_PATH)
+				: DatacolorConfig.TABLES_CONFIG_PATH.value().toString();
+		JSONObject tablesConfig;
+		try {
+			tablesConfig = readTablesConfig(tablesConfigPath);
+		} catch (IOException | URISyntaxException e) {
+			throw new DbException(e);
+		}
 		// 数据源
 		if (dataSource == null) {
 			dataSource = getDataSource(config);
@@ -150,14 +171,14 @@ public class Translator {
 				}
 				// 全局配置
 				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);
-				bind(JSONObject.class).annotatedWith(Names.named("tableConfigs")).toInstance(tableConfigs);
+				bind(JSONObject.class).annotatedWith(Names.named("tableConfigs")).toInstance(tablesConfig);
 			}
 
 		});
 		this.handler = injector.getInstance(SQLHandler.class);
 		this.engine = injector.getInstance(Engine.class);
 		try {
-			initTableInfo(dataSource, injector.getInstance(JdbcRunner.class), tableConfigs);
+			initTableInfo(dataSource, injector.getInstance(JdbcRunner.class), tablesConfig);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -218,35 +239,32 @@ public class Translator {
 	 * 
 	 * @param configFile
 	 * @return
+	 * @throws IOException 
+	 * @throws URISyntaxException 
 	 */
-	private JSONObject read(String configFile) {
-		URL url = this.getClass().getClassLoader().getResource(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
-		if (url == null) {
-			return new JSONObject();
-		}
-		FileSystem fileSystem = null;
-		try {
-			URI uri = url.toURI();
+	private JSONObject read(String configFile) throws IOException, URISyntaxException {
+		File file = new File(configFile);
+		if (file.isAbsolute()) { // 绝对路径
+			String json = new String(Files.readAllBytes(Paths.get(configFile)), Charset.defaultCharset());
+			return new JSONObject(json);
+		} else {
+			URL url = this.getClass().getClassLoader().getResource(configFile);
+			if (url == null) {
+				return new JSONObject();
+			}
 			Path configPath = null;
-			if (uri.toString().indexOf("!") != -1) { // jar
-				String[] pathArray = uri.toString().split("!", 2);
-				fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>());
-				configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
+			URI uri = url.toURI();
+			if (uri.toString().startsWith("jar:file:/") && uri.toString().indexOf("jar!") != -1) { // jar
+				String[] pathArray = url.toString().split("!", 2);
+				try (FileSystem fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>())) {
+					configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
+				}
 			} else {
 				configPath = Paths.get(uri);
 			}
 			String json = new String(Files.readAllBytes(configPath), Charset.defaultCharset());
 			return new JSONObject(json);
-		} catch (IOException | URISyntaxException e) {
-			throw new DbException(e);
-		} finally {
-			try {
-				if (fileSystem != null) {
-					fileSystem.close();
-				}
-			} catch (IOException e) {
-				//
-			}
+
 		}
 	}
 
@@ -254,27 +272,33 @@ public class Translator {
 	 * 读取数据库表配置文件
 	 * 
 	 * @param tablesPath
+	 * @throws IOException 
+	 * @throws URISyntaxException 
 	 */
-	private JSONObject readTableConfigs(String tablesPath) {
+	private JSONObject readTablesConfig(String tablesConfigPath) throws IOException, URISyntaxException {
 		JSONObject tableConfigs = new JSONObject();
-		URL url = this.getClass().getClassLoader()
-				.getResource(tablesPath == null ? DatacolorConfig.TABLE_CONFIG_PATH.value().toString() : tablesPath);
-		if (url == null) {
-			return tableConfigs;
-		}
-		FileSystem fileSystem = null;
-		Stream<Path> stream = null;
-		try {
+		File file = new File(tablesConfigPath);
+		Path configPath = null;
+		if (file.isAbsolute()) { // 绝对路径
+			configPath = Paths.get(tablesConfigPath);
+		} else {
+			URL url = this.getClass().getClassLoader().getResource(tablesConfigPath);
+			if (url == null) {
+				return tableConfigs;
+			}
 			URI uri = url.toURI();
-			Path configPath = null;
-			if (uri.toString().indexOf("!") != -1) { // jar
+			if (uri.toString().startsWith("jar:file:/") && uri.toString().indexOf("jar!") != -1) { // jar
 				String[] pathArray = uri.toString().split("!", 2);
-				fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>());
-				configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
+				try (FileSystem fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>())) {
+					configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
+				}
 			} else {
 				configPath = Paths.get(uri);
 			}
-			stream = Files.list(configPath);
+		}
+		//		Stream<Path> stream = null;
+		try (Stream<Path> stream = Files.list(configPath)) {
+			//			stream = Files.list(configPath);
 			stream.filter(Files::isRegularFile).forEach(path -> {
 				try {
 					String tableConfigString = new String(Files.readAllBytes(path), Charset.defaultCharset());
@@ -294,19 +318,8 @@ public class Translator {
 					throw new DbException(e);
 				}
 			});
-		} catch (IOException | URISyntaxException e) {
+		} catch (IOException e) {
 			throw new DbException(e);
-		} finally {
-			try {
-				if (fileSystem != null) {
-					fileSystem.close();
-				}
-			} catch (IOException e) {
-				//
-			}
-			if (stream != null) {
-				stream.close();
-			}
 		}
 		return tableConfigs;
 	}

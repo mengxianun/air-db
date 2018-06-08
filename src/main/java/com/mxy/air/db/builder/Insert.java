@@ -1,6 +1,5 @@
 package com.mxy.air.db.builder;
 
-import java.util.List;
 import java.util.Map;
 
 import com.mxy.air.db.DbException;
@@ -15,11 +14,10 @@ public class Insert extends SQLBuilder {
 		statementType = StatementType.INSERT;
 	}
 
-	public Insert(String table, Map<String, Object> values, List<SQLBuilder> associations) {
+	public Insert(String table, Map<String, Object> values) {
 		this();
 		this.table = table;
 		this.values = values;
-		this.associations = associations;
 	}
     
 	public Insert build() {

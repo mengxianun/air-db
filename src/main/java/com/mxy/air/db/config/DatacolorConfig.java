@@ -22,6 +22,11 @@ public enum DatacolorConfig {
 	TRANSACTION(true),
 
 	/*
+	 * 如果数据不存在, 就新增一条
+	 */
+	UPSERT(true),
+
+	/*
 	 * 是否启用原生SQL, 默认false
 	 */
 	NATIVE(false),
@@ -34,7 +39,7 @@ public enum DatacolorConfig {
 	/*
 	 * 表信息配置文件路径
 	 */
-	TABLE_CONFIG_PATH("tables");
+	TABLES_CONFIG_PATH("tables");
 	
 	/*
 	 * 属性默认值

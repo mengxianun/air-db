@@ -39,6 +39,7 @@ import com.mxy.air.db.interceptors.TransactionInterceptor;
 import com.mxy.air.db.jdbc.DialectFactory;
 import com.mxy.air.db.jdbc.JdbcRunner;
 import com.mxy.air.db.jdbc.handlers.MapListHandler;
+import com.mxy.air.json.JSON;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -103,20 +104,17 @@ public class Translator {
 		 */
 		// Datacolor配置, 初始为默认配置
 		JSONObject config = new JSONObject(DatacolorConfig.toMap());
-		// 读取配置文件
 		JSONObject customConfig;
 		try {
-			customConfig = read(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
+			customConfig = JSON.readObject(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
 		} catch (IOException | URISyntaxException e) {
 			throw new DbException(e);
 		}
 		// 覆盖默认配置
 		config.merge(customConfig);
-
 		/**
 		 * 读取数据库表配置文件
 		 */
-		// 读取数据库表配置文件
 		String tablesConfigPath = config.containsKey(DatacolorConfig.TABLES_CONFIG_PATH)
 				? config.getString(DatacolorConfig.TABLES_CONFIG_PATH)
 				: DatacolorConfig.TABLES_CONFIG_PATH.value().toString();
@@ -244,6 +242,7 @@ public class Translator {
 	 * @throws IOException 
 	 * @throws URISyntaxException 
 	 */
+	@Deprecated
 	private JSONObject read(String configFile) throws IOException, URISyntaxException {
 		File file = new File(configFile);
 		if (file.isAbsolute()) { // 绝对路径

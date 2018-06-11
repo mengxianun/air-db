@@ -1,20 +1,13 @@
 package com.mxy.air.db;
 
-import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -243,28 +236,10 @@ public class Translator {
 	 */
 	private JSONObject readTablesConfig(String tablesConfigPath) throws IOException, URISyntaxException {
 		JSONObject tableConfigs = new JSONObject();
-		File file = new File(tablesConfigPath);
-		Path configPath = null;
-		if (file.isAbsolute()) { // 绝对路径
-			configPath = Paths.get(tablesConfigPath);
-		} else {
-			URL url = this.getClass().getClassLoader().getResource(tablesConfigPath);
-			if (url == null) {
-				return tableConfigs;
-			}
-			URI uri = url.toURI();
-			if (uri.toString().startsWith("jar:file:/") && uri.toString().indexOf("jar!") != -1) { // jar
-				String[] pathArray = uri.toString().split("!", 2);
-				try (FileSystem fileSystem = FileSystems.newFileSystem(URI.create(pathArray[0]), new HashMap<>())) {
-					configPath = fileSystem.getPath(pathArray[1].replaceAll("!", ""));
-				}
-			} else {
-				configPath = Paths.get(uri);
-			}
-		}
-		//		Stream<Path> stream = null;
+		Path configPath = JSON.getPath(tablesConfigPath);
+		if (configPath == null)
+			return tableConfigs;
 		try (Stream<Path> stream = Files.list(configPath)) {
-			//			stream = Files.list(configPath);
 			stream.filter(Files::isRegularFile).forEach(path -> {
 				try {
 					String tableConfigString = new String(Files.readAllBytes(path), Charset.defaultCharset());

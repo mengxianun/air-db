@@ -26,6 +26,11 @@ public enum TableConfig {
 	public enum Column {
 
 		/*
+		 * 数据类型
+		 */
+		TYPE,
+
+		/*
 		 * 显示
 		 */
 		DISPLAY,

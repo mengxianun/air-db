@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.mxy.air.db.SQLBuilder.StatementType;
@@ -109,27 +110,42 @@ public class DataProcessor {
 				}
 			}
 			return null;
-		}
-		if (columnConfig.containsKey(Column.UNIQUE) && columnConfig.getBoolean(Column.UNIQUE)) { // 字段唯一性验证
-			boolean exist = false;
-			if (builder instanceof Insert) {
-				SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value);
-				select.setTableConfigs(tableConfigs);
-				select.build();
-				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
-			} else if (builder instanceof Update) {
-				// update操作唯一性验证排除自身, 通过where和params定位自身, 再reverse排除自身, 再equal查询其他包含该属性的记录
-				SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
-						.whereParams(builder.whereParams()).reverse().equal(column, value);
-				select.setTableConfigs(tableConfigs);
-				select.build();
-				exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
-			}
-			if (exist) {
-				throw new DbException("记录 " + column + "[" + value + "] 已存在");
+		} else {
+			// 字段类型转换, 请求传递的字段类型转为数据库的字段类型
+			String dataType = columnConfig.getString(Column.TYPE);
+			// 将请求字段类型转换为数据库表字段类型
+			convertToDbType(value, dataType);
+			// 字段唯一性验证
+			if (columnConfig.containsKey(Column.UNIQUE) && columnConfig.getBoolean(Column.UNIQUE)) {
+				boolean exist = false;
+				if (builder instanceof Insert) {
+					SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value);
+					select.setTableConfigs(tableConfigs);
+					select.build();
+					exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
+				} else if (builder instanceof Update) {
+					// update操作唯一性验证排除自身, 通过where和params定位自身, 再reverse排除自身, 再equal查询其他包含该属性的记录
+					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
+							.whereParams(Lists.newArrayList(builder.whereParams())).reverse().equal(column, value);
+
+					select.setTableConfigs(tableConfigs);
+					select.build();
+					exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
+				}
+				if (exist) {
+					throw new DbException("记录 " + column + "[" + value + "] 已存在");
+				}
 			}
 		}
 		return value;
+	}
+
+	private void convertToDbType(Object value, String dataType) {
+		if (dataType.equals("int")) {
+			value = Integer.parseInt(value.toString());
+		} else if (dataType.equals("varchar")) {
+			value = value.toString();
+		}
 	}
 
 }

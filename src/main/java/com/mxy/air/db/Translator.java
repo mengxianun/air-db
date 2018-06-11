@@ -27,6 +27,7 @@ import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.annotation.Transactional;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.interceptors.SQLLogInterceptor;
 import com.mxy.air.db.interceptors.TransactionInterceptor;
 import com.mxy.air.db.jdbc.DialectFactory;
@@ -192,22 +193,26 @@ public class Translator {
 		for (Map<String, Object> tableInfo : tableInfos) {
 			String tableName = tableInfo.get("TABLE_NAME").toString();
 			String column = tableInfo.get("COLUMN_NAME").toString();
+			String dataType = tableInfo.get("DATA_TYPE").toString();
 			if (tableConfigs.containsKey(tableName)) {
 				JSONObject tableConfig = tableConfigs.getObject(tableName);
 				if (tableConfig.containsKey(TableConfig.COLUMNS)) {
 					JSONObject columns = tableConfig.getObject(TableConfig.COLUMNS);
-					if (!columns.containsKey(column)) {
-						columns.put(column, new JSONObject());
+					if (columns.containsKey(column)) {
+						JSONObject columnConfig = columns.getObject(column);
+						columnConfig.put(Column.TYPE, dataType);
+					} else {
+						columns.put(column, new JSONObject().put(Column.TYPE, dataType));
 					}
 				} else {
 					JSONObject columns = new JSONObject();
-					columns.put(column, new JSONObject());
+					columns.put(column, new JSONObject().put(Column.TYPE, dataType));
 					tableConfig.put(TableConfig.COLUMNS, columns);
 				}
 			} else {
 				JSONObject tableConfig = new JSONObject();
 				JSONObject columns = new JSONObject();
-				columns.put(column, new JSONObject());
+				columns.put(column, new JSONObject().put(Column.TYPE, dataType));
 				tableConfig.put(TableConfig.COLUMNS, columns);
 				tableConfigs.put(tableName, tableConfig);
 			}

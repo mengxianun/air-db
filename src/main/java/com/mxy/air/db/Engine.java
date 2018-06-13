@@ -531,10 +531,52 @@ public class Engine {
 		if (group == null) {
 			return null;
 		}
+		String[] groupArray;
 		if (group instanceof JSONArray) {
-			return ((JSONArray) group).toStringArray();
+			groupArray = ((JSONArray) group).toStringArray();
+		} else {
+			groupArray = new String[] { group.toString() };
 		}
-		return new String[] { group.toString() };
+		for (String field : groupArray) {
+			/*
+			 * 如果字段没有指定表别名, 添加表别名
+			 * ***********临时方法, 待优化***********
+			 */
+			if (field.indexOf(".") == -1) {
+				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
+				if (tableColumnConfig.containsKey(field)) {
+					field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+				} else {
+					if (joins != null) {
+						for (Join join : joins) {
+							JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
+									join.getTargetTable());
+							if (joinTableColumnConfig.containsKey(field)) {
+								field = join.getTargetAlias() + "." + field;
+								break;
+							}
+						}
+					}
+				}
+			} else {
+				String[] whereTableField = field.split("\\.");
+				String whereTable = whereTableField[0];
+				String whereField = whereTableField[1];
+				if (whereTable.equals(table)) {
+					field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+				} else {
+					if (joins != null) {
+						for (Join join : joins) {
+							if (whereTable.equals(join.getTargetTable())) {
+								field = join.getTargetAlias() + "." + whereField;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		return groupArray;
 	}
 
 	/**
@@ -547,11 +589,53 @@ public class Engine {
 		if (order == null) {
 			return null;
 		}
+		String[] orderArray;
 		if (order instanceof JSONArray) {
 			String[] orderFields = ((JSONArray) order).toStringArray();
-			return Arrays.stream(orderFields).map(this::parseOrderField).toArray(String[]::new);
+			orderArray = Arrays.stream(orderFields).map(this::parseOrderField).toArray(String[]::new);
+		} else {
+			orderArray = new String[] { parseOrderField(order.toString()) };
 		}
-		return new String[] { parseOrderField(order.toString()) };
+		for (String field : orderArray) {
+			/*
+			 * 如果字段没有指定表别名, 添加表别名
+			 * ***********临时方法, 待优化***********
+			 */
+			if (field.indexOf(".") == -1) {
+				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
+				if (tableColumnConfig.containsKey(field)) {
+					field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+				} else {
+					if (joins != null) {
+						for (Join join : joins) {
+							JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
+									join.getTargetTable());
+							if (joinTableColumnConfig.containsKey(field)) {
+								field = join.getTargetAlias() + "." + field;
+								break;
+							}
+						}
+					}
+				}
+			} else {
+				String[] whereTableField = field.split("\\.");
+				String whereTable = whereTableField[0];
+				String whereField = whereTableField[1];
+				if (whereTable.equals(table)) {
+					field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+				} else {
+					if (joins != null) {
+						for (Join join : joins) {
+							if (whereTable.equals(join.getTargetTable())) {
+								field = join.getTargetAlias() + "." + whereField;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		return orderArray;
 	}
 
 	/**

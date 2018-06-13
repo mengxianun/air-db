@@ -537,6 +537,7 @@ public class Engine {
 		} else {
 			groupArray = new String[] { group.toString() };
 		}
+		List<String> newGroup = new ArrayList<>();
 		for (String field : groupArray) {
 			/*
 			 * 如果字段没有指定表别名, 添加表别名
@@ -575,8 +576,9 @@ public class Engine {
 					}
 				}
 			}
+			newGroup.add(field);
 		}
-		return groupArray;
+		return newGroup.toArray(new String[] {});
 	}
 
 	/**
@@ -596,6 +598,7 @@ public class Engine {
 		} else {
 			orderArray = new String[] { parseOrderField(order.toString()) };
 		}
+		List<String> newOrder = new ArrayList<>();
 		for (String field : orderArray) {
 			/*
 			 * 如果字段没有指定表别名, 添加表别名
@@ -634,8 +637,9 @@ public class Engine {
 					}
 				}
 			}
+			newOrder.add(field);
 		}
-		return orderArray;
+		return newOrder.toArray(new String[] {});
 	}
 
 	/**

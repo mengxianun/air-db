@@ -68,6 +68,8 @@ public class Engine {
 	
 	private String alias;
 
+	private List<Join> joins;
+
 	public Engine() {}
 
 	public Engine(JSONObject object) {
@@ -173,7 +175,7 @@ public class Engine {
 	 */
 	private SQLBuilder select(JSONObject object) {
 		// join
-		List<Join> joins = parseJoin(object.get(JOIN));
+		joins = parseJoin(object.get(JOIN));
 		// 字段, 默认查询所有
 		String[] fields = object.containsKey(FIELDS) ? object.getArray(FIELDS).toStringArray() : null;
 		// SQL参数
@@ -404,6 +406,26 @@ public class Engine {
 		Operator op = parseOperator(condition);
 		String[] kv = condition.split(op.op());
 		String field = kv[0];
+		/*
+		 * 如果where条件字段没有指定表别名, 添加表别名
+		 * ***********临时方法, 待优化***********
+		 */
+		if (field.indexOf(".") == -1) {
+			JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
+			if (tableColumnConfig.containsKey(field)) {
+				field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+			} else {
+				if (joins != null) {
+					for (Join join : joins) {
+						JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
+								join.getTargetTable());
+						if (joinTableColumnConfig.containsKey(field)) {
+							field = join.getTargetAlias() + "." + field;
+						}
+					}
+				}
+			}
+		}
 		String value = kv[1];
 		if (op == EQUAL || op == NOT_EQUAL) { // 等于的情况包括: 直接相等, between(~分割的范围值), in(,分割的多值)
 			if (value.indexOf(BETWEEN.op()) > 0) { // between

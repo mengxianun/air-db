@@ -2,6 +2,7 @@ package com.mxy.air.db.builder;
 
 import java.util.Map;
 
+import com.mxy.air.db.AirContext;
 import com.mxy.air.db.DbException;
 import com.mxy.air.db.SQLBuilder;
 import com.mxy.air.db.config.TableConfig;
@@ -21,8 +22,10 @@ public class Insert extends SQLBuilder {
 	}
     
 	public Insert build() {
+		if (db == null)
+			db = AirContext.getDefaultDb();
 		// 配置
-		JSONObject tableConfig = tableConfigs.getObject(table);
+		JSONObject tableConfig = AirContext.getTableConfig(db, table);
 		if (tableConfig == null) {
 			throw new DbException(String.format("数据库表[%s]不存在", table));
 		}

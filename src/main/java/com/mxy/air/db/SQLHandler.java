@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.inject.Inject;
-import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Select;
@@ -24,25 +23,18 @@ import com.mxy.air.json.JSONObject;
 public class SQLHandler {
 
 	@Inject
-	private SQLSession sqlSession;
-
-	@Inject
 	private DataProcessor processor;
 
 	@Inject
 	private DataRenderer renderer;
 
-	@Inject
-	@Named("config")
-	private JSONObject config;
-
-	@Inject
-	@Named("tableConfigs")
-	private JSONObject tableConfigs;
-
-	public Object handle(RequestAction action) throws SQLException {
-		Type type = action.getType();
-		SQLBuilder builder = action.getBuilder();
+	public Object handle(Engine engine) throws SQLException {
+		Type type = engine.getType();
+		SQLBuilder builder = engine.getBuilder();
+		// 检查
+		AirContext.check(builder.db(), builder.table());
+		// 构建SQL语句
+		builder.build();
 		switch (type) {
 		case DETAIL:
 			return detail(builder);
@@ -70,7 +62,8 @@ public class SQLHandler {
 	 * @throws SQLException
 	 */
 	public Object detail(SQLBuilder builder) throws SQLException {
-		JSONObject tableConfig = tableConfigs.getObject(builder.table());
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
+		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
@@ -86,7 +79,8 @@ public class SQLHandler {
 	 * @throws SQLException
 	 */
 	public Object query(SQLBuilder builder) throws SQLException {
-		JSONObject tableConfig = tableConfigs.getObject(builder.table());
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
+		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		List<Map<String, Object>> list = sqlSession.list(builder.sql(), builder.params().toArray());
 		// 结果渲染
@@ -113,7 +107,8 @@ public class SQLHandler {
 	 */
 	// @Transactional
 	public Object insert(SQLBuilder builder) throws SQLException {
-		JSONObject tableConfig = tableConfigs.getObject(builder.table());
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
+		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
 		// 验证并处理请求数据
 		processor.process(builder);
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
@@ -139,16 +134,16 @@ public class SQLHandler {
 	 */
 	// @Transactional
 	public Object update(SQLBuilder builder) throws SQLException {
-		if (config.getBoolean(DatacolorConfig.UPSERT)) { // 如果不存在就新增记录
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
+		if (AirContext.getConfig().getBoolean(DatacolorConfig.UPSERT)) { // 如果不存在就新增记录
 			// 查询数据库是否存在
 			Select select = SQLBuilder.select(builder.table());
 			select.where(builder.where()).params(builder.whereParams());
-			select.setTableConfigs(tableConfigs);
 			select.build();
 			Map<String, Object> detail = sqlSession.detail(select.sql(), select.params().toArray());
 			if (detail == null) {
 				Insert insert = SQLBuilder.insert(builder.table(), builder.values());
-				insert.setTableConfigs(tableConfigs);
+				insert.build();
 				return insert(insert);
 			}
 		}
@@ -171,6 +166,7 @@ public class SQLHandler {
 	 */
 	// @Transactional
 	public Object delete(SQLBuilder builder) throws SQLException {
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
 		return new JSONArray().add(deleteCount);
 	}
@@ -182,16 +178,17 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public Object transaction(List<RequestAction> actions) throws SQLException {
+	public Object transaction(String db, List<Engine> engines) throws SQLException {
 		JSONArray result = new JSONArray();
-
+		// 跨数据库事务暂不支持
+		SQLSession sqlSession = AirContext.getSqlSession(db);
 		sqlSession.trans(new Atom() {
 
 			@Override
 			public void run() {
-				for (RequestAction action : actions) {
+				for (Engine engine : engines) {
 					try {
-						result.add(handle(action));
+						result.add(handle(engine));
 					} catch (SQLException e) {
 						throw new RuntimeException(e);
 					}

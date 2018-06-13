@@ -1,62 +1,103 @@
 package com.mxy.air.db;
 
-import java.util.Map;
+import javax.sql.DataSource;
 
-import com.google.inject.Inject;
+import com.google.common.base.Strings;
+import com.google.inject.Injector;
+import com.google.inject.Key;
+import com.google.inject.name.Names;
+import com.mxy.air.db.config.DatacolorConfig;
+import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.TableConfig;
-import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.json.JSONObject;
 
-@Deprecated
+/**
+ * 全局配置信息类, 提供获取各种信息的静态方法
+ * @author mengxiangyun
+ *
+ */
 public class AirContext {
 
-	@Inject
-	private JSONObject tables;
+	private static JSONObject config;
 
-	public AirContext() {
+	private static Injector injector;
+
+	public static void init(JSONObject config, Injector injector) {
+		AirContext.config = config;
+		AirContext.injector = injector;
+		// 设置每个SQLSession的数据源
+		for (String db : config.getObject(DatacolorConfig.DATASOURCES).keySet()) {
+			DataSource dataSource = (DataSource) config.getObject(DatacolorConfig.DATASOURCES).getObject(db)
+					.get(Datasource.SOURCE);
+			getSqlSession(db).setDataSource(dataSource);
+		}
+	}
+
+	public static JSONObject getConfig() {
+		return config;
+	}
+
+	public static JSONObject getAllTableConfig() {
+		return config.getObject(DatacolorConfig.DB_TABLE_CONFIG);
+	}
+
+	public static JSONObject getAllTableConfig(String db) {
+		return config.getObject(DatacolorConfig.DB_TABLE_CONFIG).getObject(db);
+	}
+
+	public static JSONObject getTableConfig(String table) {
+		return getTableConfig(getDefaultDb(), table);
+	}
+
+	public static JSONObject getTableConfig(String db, String table) {
+		return getAllTableConfig(db).getObject(table);
+	}
+
+	public static JSONObject getAllTableColumnConfig(String db, String table) {
+		return getAllTableConfig(db).getObject(table).getObject(TableConfig.COLUMNS);
+	}
+
+	public static String getDefaultDb() {
+		if (config.containsKey(DatacolorConfig.DEFAULT_DATASOURCE)) {
+			return config.getString(DatacolorConfig.DEFAULT_DATASOURCE);
+		} else {
+			return config.getObject(DatacolorConfig.DATASOURCES).getFirst().getKey();
+		}
+	}
+
+	public static SQLSession getDefaultSqlSession() {
+		return injector.getInstance(Key.get(SQLSession.class, Names.named(getDefaultDb())));
+	}
+
+	public static SQLSession getSqlSession(String db) {
+		return injector.getInstance(Key.get(SQLSession.class, Names.named(db)));
+	}
+	
+	public static void addDbTableConfig(String db, JSONObject dbTableConfig) {
+		getAllTableConfig().put(db, dbTableConfig);
+	}
+
+	/**
+	 * 检查数据源和数据库表
+	 * @param db
+	 * @param table
+	 */
+	public static void check(String db, String table) {
+		if (Strings.isNullOrEmpty(db) || Strings.isNullOrEmpty(table)) {
+			return;
+		}
+		if (!getAllTableConfig().containsKey(db)) {
+			throw new DbException(String.format("数据源 [%s] 不存在", db));
+		}
+		if (!getAllTableConfig(db).containsKey(table)) {
+			throw new DbException(String.format("数据库表 [%s] 不存在", table));
+		}
 	}
 
 	enum Association {
 		
 		PRIMARY_TABLE, PRIMARY_COLUMN, TARGET_TABLE, TARGET_COLUMN;
 
-	}
-
-	/**
-	 * 获取所有关联关系
-	 * @return
-	 */
-	public JSONObject getAssociations() {
-		JSONObject associations = new JSONObject();
-		for (Map.Entry<String, Object> entry : tables.entrySet()) {
-			associations.put(entry.getKey(), getAssociation(entry.getKey()));
-		}
-		return associations;
-	}
-
-	/**
-	 * 获取指定表的关联关系
-	 * @param table
-	 * @return
-	 */
-	public JSONObject getAssociation(String table) {
-		JSONObject tableConfig = tables.getObject(table);
-		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
-		for (Map.Entry<String, Object> columnEntry : columnConfigs.entrySet()) {
-			String columnName = columnEntry.getKey();
-			JSONObject columnConfig = (JSONObject) columnEntry.getValue();
-			if (columnConfig.containsKey(Column.ASSOCIATION)) {
-				JSONObject columnAssociation = columnConfig.getObject(Column.ASSOCIATION);
-				JSONObject association = new JSONObject();
-				association.put(Association.PRIMARY_TABLE, table);
-				association.put(Association.PRIMARY_COLUMN, columnName);
-				association.put(Association.TARGET_TABLE, columnAssociation.get(TableConfig.Association.TARGET_TABLE));
-				association.put(Association.TARGET_COLUMN,
-						columnAssociation.get(TableConfig.Association.TARGET_COLUMN));
-				return association;
-			}
-		}
-		return null;
 	}
 
 }

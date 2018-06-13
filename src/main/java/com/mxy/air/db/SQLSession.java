@@ -31,7 +31,15 @@ public class SQLSession {
 	private static ThreadLocal<Boolean> closeConnection = new ThreadLocal<>();
 	private JdbcRunner runner;
 
+	public SQLSession() {}
+
 	public SQLSession(DataSource dataSource) {
+		this.dataSource = dataSource;
+		this.runner = new JdbcRunner(dataSource);
+		closeConnection.set(true); // 默认非事务运行
+	}
+
+	public void setDataSource(DataSource dataSource) {
 		this.dataSource = dataSource;
 		this.runner = new JdbcRunner(dataSource);
 		closeConnection.set(true); // 默认非事务运行
@@ -151,6 +159,14 @@ public class SQLSession {
 
 	public boolean isCloseConnection() {
 		return closeConnection.get() == null ? true : closeConnection.get();
+	}
+
+	public String getDbName() {
+		try (Connection conn = dataSource.getConnection()) {
+			return conn.getCatalog();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@SQLLog

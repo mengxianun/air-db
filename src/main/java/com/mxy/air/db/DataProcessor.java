@@ -9,12 +9,9 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.Lists;
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
 import com.mxy.air.db.SQLBuilder.StatementType;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Update;
-import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.config.TableConfig.Keyword;
 import com.mxy.air.json.JSONObject;
@@ -27,13 +24,6 @@ import com.mxy.air.json.JSONObject;
  */
 public class DataProcessor {
 
-	@Inject
-	private SQLSession sqlSession;
-
-	@Inject
-	@Named("tableConfigs")
-	private JSONObject tableConfigs;
-
 	/**
 	 * 对请求数据做验证和处理
 	 * 
@@ -45,8 +35,7 @@ public class DataProcessor {
 	 */
 	public void process(SQLBuilder builder)
 			throws SQLException {
-		JSONObject tableConfig = tableConfigs.getObject(builder.table);
-		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
+		JSONObject columnConfigs = AirContext.getAllTableColumnConfig(builder.db(), builder.table());
 		// 原始值
 		Map<String, Object> values = builder.values();
 		// 经过处理的值, 初始为原始值
@@ -80,6 +69,7 @@ public class DataProcessor {
 	 */
 	public Object process(String column, Object value, JSONObject columnConfig, SQLBuilder builder)
 			throws SQLException {
+		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		if (value == null) { // 没有指定列的值
 			if (columnConfig.containsKey(Column.DEFAULT)) { // 是否有默认值
 				Object defaultValue = columnConfig.get(Column.DEFAULT);
@@ -96,7 +86,6 @@ public class DataProcessor {
 				if (builder.statementType == StatementType.UPDATE) {
 					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
 							.params(builder.whereParams());
-					select.setTableConfigs(tableConfigs);
 					select.build();
 					List<Map<String, Object>> updateRecords = sqlSession.list(select.sql(), select.params().toArray());
 					for (Map<String, Object> record : updateRecords) {
@@ -120,7 +109,6 @@ public class DataProcessor {
 				boolean exist = false;
 				if (builder instanceof Insert) {
 					SQLBuilder select = SQLBuilder.select(builder.table()).equal(column, value);
-					select.setTableConfigs(tableConfigs);
 					select.build();
 					exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 				} else if (builder instanceof Update) {
@@ -128,7 +116,6 @@ public class DataProcessor {
 					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
 							.whereParams(Lists.newArrayList(builder.whereParams())).reverse().equal(column, value);
 
-					select.setTableConfigs(tableConfigs);
 					select.build();
 					exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;
 				}

@@ -14,12 +14,7 @@ public enum DatacolorConfig {
 	/*
 	 * 数据源
 	 */
-	DATASOURCE(null),
-	
-	/*
-	 * 事务, 默认开启
-	 */
-	TRANSACTION(true),
+	DATASOURCES(null),
 
 	/*
 	 * 如果数据不存在, 就新增一条
@@ -37,9 +32,37 @@ public enum DatacolorConfig {
 	LOG(false),
 
 	/*
+	 * 主数据源
+	 */
+	DEFAULT_DATASOURCE("default"),
+
+	/*
 	 * 表信息配置文件路径
 	 */
-	TABLES_CONFIG_PATH("tables");
+	DB_TABLE_CONFIG_PATH("tables"),
+
+	/*
+	 * 所有数据库表配置, 该属性项非配置文件配置, 是项目自动生成的属性, 目的是将数据库表的配置信息与项目全局的配置信息放在一个对象里
+	 * 全局配置
+	 * {
+	 *   "datasources":{
+	 *     "db1":{},
+	 *     "db2":{}
+	 *   },
+	 *   "log":true,
+	 *   "db_table_config":{
+	 *     "db1":{
+	 *       "table1":{},
+	 *       "table2":{} 
+	 *     }
+	 *     "db2":{
+	 *       "table1":{},
+	 *       "table2":{} 
+	 *     }
+	 *   }
+	 * }
+	 */
+	DB_TABLE_CONFIG(null);
 	
 	/*
 	 * 属性默认值
@@ -71,7 +94,17 @@ public enum DatacolorConfig {
 		/*
 		 * 数据源类型
 		 */
-		TYPE
+		TYPE,
+
+		/*
+		 * 方言
+		 */
+		DIALECT,
+
+		/**
+		 * 数据源
+		 */
+		SOURCE;
 		
 	}
 

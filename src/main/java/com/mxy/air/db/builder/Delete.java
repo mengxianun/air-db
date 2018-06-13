@@ -2,6 +2,7 @@ package com.mxy.air.db.builder;
 
 import java.util.List;
 
+import com.mxy.air.db.AirContext;
 import com.mxy.air.db.SQLBuilder;
 
 public class Delete extends SQLBuilder {
@@ -19,6 +20,8 @@ public class Delete extends SQLBuilder {
 	}
     
 	public Delete build() {
+		if (db == null)
+			db = AirContext.getDefaultDb();
 		StringBuilder builder = new StringBuilder();
 		builder.append("delete from ").append(table);
 		if (!isEmpty(where)) {

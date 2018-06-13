@@ -38,8 +38,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
@@ -58,13 +56,23 @@ import com.mxy.air.json.JSONObject;
  */
 public class Engine {
 
-	@Inject
-	@Named("config")
-	private JSONObject config;
+	private JSONObject object;
 
-	@Inject
-	@Named("tableConfigs")
-	private JSONObject tableConfigs;
+	private SQLBuilder builder;
+
+	private Type type;
+	
+	private String db;
+	
+	private String table;
+	
+	private String alias;
+
+	public Engine() {}
+
+	public Engine(JSONObject object) {
+		this.object = object;
+	}
 
 	/**
 	 * 解析JSON对象, 返回SQLBuilder
@@ -72,51 +80,53 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	public RequestAction parse(JSONObject object) {
+	public Engine parse() {
 		if (object.containsKey(NATIVE)) {
-			if (config.getBoolean(DatacolorConfig.NATIVE)) {
-				return new RequestAction(null, new Native(object.getString(NATIVE)));
+			if (AirContext.getConfig().getBoolean(DatacolorConfig.NATIVE)) {
+				builder = new Native(object.getString(NATIVE));
+				return this;
 			} else {
 				throw new DbException("属性[" + NATIVE + "]被禁用");
 			}
 		}
-		return build(object);
-	}
-
-	/**
-	 * 构建SQLBuilder
-	 * 
-	 * @param object
-	 * @return
-	 */
-	public RequestAction build(JSONObject object) {
 		// 操作类型
-		Type type = getType(object);
-		SQLBuilder builder = null;
-		String table = object.getString(type);
-
+		parseType();
+		table = object.getString(type).trim();
+		if (table.indexOf(" ") != -1) { // 指定了表别名
+			String[] tableAliasString = table.split(" +");
+			table = tableAliasString[0];
+			alias = tableAliasString[1];
+		}
+		if (table.indexOf(".") != -1) { // 指定了数据源
+			String[] dbTableString = table.split("\\.");
+			db = dbTableString[0];
+			table = dbTableString[1];
+		}
+		if (db == null) {
+			db = AirContext.getDefaultDb();
+		}
 		switch (type) {
 		case DETAIL:
 		case QUERY:
 		case SELECT:
-			builder = select(table, object);
+			builder = select(object);
 			break;
 		case INSERT:
-			builder = insert(table, object);
+			builder = insert(object);
 			break;
 		case UPDATE:
-			builder = update(table, object);
+			builder = update(object);
 			break;
 		case DELETE:
-			builder = delete(table, object);
+			builder = delete(object);
 			break;
 
 		default:
 			break;
 		}
-		builder.setTableConfigs(tableConfigs);
-		builder.build();
-		return new RequestAction(type, builder);
+		builder.db(db);
+		//		builder.build();
+		return this;
 	}
 
 	/**
@@ -125,7 +135,7 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	public Type getType(JSONObject object) {
+	public void parseType() {
 		List<Type> types = new ArrayList<>();
 		if (object.containsKey(DETAIL)) {
 			types.add(DETAIL);
@@ -151,7 +161,7 @@ public class Engine {
 		if (types.size() != 1) { // 操作类型只能是一个
 			throw new DbException("未指定操作类型或指定了多个操作类型");
 		}
-		return types.get(0);
+		type = types.get(0);
 	}
 
 	/**
@@ -161,12 +171,9 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	private SQLBuilder select(String table, JSONObject object) {
-		String[] tableAliasInfo = table.split(" ");
-		String tableName = tableAliasInfo[0];
-		String tableAlias = tableAliasInfo.length > 1 ? tableAliasInfo[1] : null;
+	private SQLBuilder select(JSONObject object) {
 		// join
-		List<Join> joins = parseJoin(table, object.get(JOIN));
+		List<Join> joins = parseJoin(object.get(JOIN));
 		// 字段, 默认查询所有
 		String[] fields = object.containsKey(FIELDS) ? object.getArray(FIELDS).toStringArray() : null;
 		// SQL参数
@@ -185,7 +192,7 @@ public class Engine {
 			Object[] limitArray = object.getArray(LIMIT).array();
 			limit = Arrays.stream(limitArray).mapToLong(i -> Long.parseLong(i.toString())).toArray();
 		}
-		return SQLBuilder.select(tableName, tableAlias, joins, fields, where, params, groups, orders, limit);
+		return SQLBuilder.select(table, alias, joins, fields, where, params, groups, orders, limit);
 	}
 
 	/**
@@ -195,7 +202,7 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	private SQLBuilder insert(String table, JSONObject object) {
+	private SQLBuilder insert(JSONObject object) {
 		// 插入的值
 		Map<String, Object> values = object.containsKey(VALUES) ? object.getObject(VALUES).map() : null;
 		return SQLBuilder.insert(table, values);
@@ -209,7 +216,7 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	private SQLBuilder update(String table, JSONObject object) {
+	private SQLBuilder update(JSONObject object) {
 		// SQL参数
 		List<Object> params = new ArrayList<>();
 		// 插入或更新的值
@@ -228,7 +235,7 @@ public class Engine {
 	 * @param object
 	 * @return
 	 */
-	private SQLBuilder delete(String table, JSONObject object) {
+	private SQLBuilder delete(JSONObject object) {
 		// SQL参数
 		List<Object> params = new ArrayList<>();
 		// where
@@ -253,7 +260,7 @@ public class Engine {
 	 *            包含join信息的JSON对象
 	 * @return
 	 */
-	private List<Join> parseJoin(String table, Object join) {
+	private List<Join> parseJoin(Object join) {
 		if (join == null) {
 			return null;
 		}
@@ -262,24 +269,24 @@ public class Engine {
 			JSONArray joinArray = (JSONArray) join;
 			for (Object joinObject : joinArray.list()) {
 				if (joinObject instanceof JSONObject) {
-					Join parseJoin = parseJoin(table, (JSONObject) joinObject);
+					Join parseJoin = parseJoin((JSONObject) joinObject);
 					if (parseJoin != null) {
 						joins.add(parseJoin);
 					}
 				} else { // 字符串, join单个表, 默认left
-					Join parseJoin = parseJoin(table, joinObject.toString(), JoinType.LEFT);
+					Join parseJoin = parseJoin(joinObject.toString(), JoinType.LEFT);
 					if (parseJoin != null) {
 						joins.add(parseJoin);
 					}
 				}
 			}
 		} else if (join instanceof JSONObject) { // join单个表, key为JoinType, value为join的表
-			Join parseJoin = parseJoin(table, (JSONObject) join);
+			Join parseJoin = parseJoin((JSONObject) join);
 			if (parseJoin != null) {
 				joins.add(parseJoin);
 			}
 		} else { // 字符串, join单个表, 默认left
-			Join parseJoin = parseJoin(table, join.toString(), JoinType.LEFT);
+			Join parseJoin = parseJoin(join.toString(), JoinType.LEFT);
 			if (parseJoin != null) {
 				joins.add(parseJoin);
 			}
@@ -294,11 +301,11 @@ public class Engine {
 	 * @param join
 	 * @return
 	 */
-	private Join parseJoin(String table, JSONObject join) {
+	private Join parseJoin(JSONObject join) {
 		Entry<String, Object> entry = join.entrySet().iterator().next();
 		String joinType = entry.getKey();
 		String joinTable = entry.getValue().toString();
-		Join parseJoin = parseJoin(table, joinTable, JoinType.from(joinType));
+		Join parseJoin = parseJoin(joinTable, JoinType.from(joinType));
 		return parseJoin;
 	}
 
@@ -310,11 +317,8 @@ public class Engine {
 	 * @param joinType join类型
 	 * @return
 	 */
-	private Join parseJoin(String table, String joinTable, JoinType joinType) {
-		String[] tableAliasInfo = table.split(" ");
-		String tableName = tableAliasInfo[0];
-		String tableAlias = tableAliasInfo.length > 1 ? tableAliasInfo[1] : null;
-		JSONObject tableConfig = tableConfigs.getObject(tableName);
+	private Join parseJoin(String joinTable, JoinType joinType) {
+		JSONObject tableConfig = AirContext.getTableConfig(db, table);
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		String[] joinTableAliasInfo = joinTable.split(" ");
 		String joinTableName = joinTableAliasInfo[0];
@@ -332,7 +336,7 @@ public class Engine {
 				}
 				// 主表的关联字段为join表中配置的target_column
 				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
-				return new Join(tableName, tableAlias, column, joinTableName, joinTableAlias, targetColumn, joinType);
+				return new Join(table, alias, column, joinTableName, joinTableAlias, targetColumn, joinType);
 			}
 		}
 		return null;
@@ -528,6 +532,14 @@ public class Engine {
 			return orderStr;
 		}
 
+	}
+
+	public SQLBuilder getBuilder() {
+		return builder;
+	}
+
+	public Type getType() {
+		return type;
 	}
 
 }

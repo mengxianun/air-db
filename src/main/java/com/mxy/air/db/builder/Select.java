@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+import com.mxy.air.db.AirContext;
 import com.mxy.air.db.SQLBuilder;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.jdbc.Page;
@@ -41,6 +42,9 @@ public class Select extends SQLBuilder {
 	}
 
 	public Select build() {
+		if (db == null)
+			db = AirContext.getDefaultDb();
+		JSONObject tableConfigs = AirContext.getAllTableConfig(db);
 		// 主表的配置
 		JSONObject tableConfig = tableConfigs.getObject(table);
 		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
@@ -105,6 +109,12 @@ public class Select extends SQLBuilder {
 					if (columnConfigs.containsKey(columnName)) { // 查询的列在主表的列配置中, 即表示该列是属于主表的列
 						columnString.append(alias).append(".").append(column).append(","); // 拼接主表字段字符串
 						joinColumns.remove(column); // 删除主表的字段
+					} else { // 其他字段字符串, 如方法
+						/*
+						 * TO-DO
+						 *   判断查询列是否为函数, 是函数的话直接拼接, 不是的话不拼接
+						 */
+						columnString.append(column).append(",");
 					}
 				}
 			}
@@ -180,8 +190,8 @@ public class Select extends SQLBuilder {
 		sql = builder.toString();
 		if (!isEmpty(limit)) {
 			countSql = count(sql);
-			sql = SQLBuilder.dialect.processLimit(sql);
-			Object[] limitParams = SQLBuilder.dialect.processLimitParams(new Page(limit[0], limit[1]));
+			sql = dialect.processLimit(sql);
+			Object[] limitParams = dialect.processLimitParams(new Page(limit[0], limit[1]));
 			params.addAll(Arrays.asList(limitParams));
 		}
 		return this;

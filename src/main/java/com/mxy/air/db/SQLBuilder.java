@@ -11,7 +11,6 @@ import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Select;
 import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.jdbc.Dialect;
-import com.mxy.air.json.JSONObject;
 
 /**
  * SQL构造器
@@ -29,6 +28,8 @@ public abstract class SQLBuilder {
 
 	// SQL操作类型
 	protected StatementType statementType;
+
+	protected String db;
 
 	// 数据库表
 	protected String table;
@@ -65,13 +66,7 @@ public abstract class SQLBuilder {
 	protected List<Object> whereParams = new ArrayList<>();
 
 	// 方言
-	protected static Dialect dialect;
-
-	protected JSONObject tableConfigs;
-
-	public static void dialect(Dialect dialect) {
-		SQLBuilder.dialect = dialect;
-	}
+	protected Dialect dialect;
 
 	public static Select select(String table) {
 		return new Select(table);
@@ -153,6 +148,15 @@ public abstract class SQLBuilder {
 		if (!isEmpty(where)) {
 			where = "not " + where.replaceAll(" and ", " and not ");
 		}
+		return this;
+	}
+
+	public String db() {
+		return db;
+	}
+
+	public SQLBuilder db(String db) {
+		this.db = db;
 		return this;
 	}
 
@@ -265,8 +269,8 @@ public abstract class SQLBuilder {
 		return this;
 	}
 
-	public void setTableConfigs(JSONObject tableConfigs) {
-		this.tableConfigs = tableConfigs;
+	public void dialect(Dialect dialect) {
+		this.dialect = dialect;
 	}
 
 }

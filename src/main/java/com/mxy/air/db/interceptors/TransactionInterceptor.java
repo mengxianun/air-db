@@ -2,11 +2,13 @@ package com.mxy.air.db.interceptors;
 
 import java.sql.SQLException;
 
-import com.google.inject.Inject;
-import com.mxy.air.db.SQLSession;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 
+import com.google.inject.Inject;
+import com.mxy.air.db.SQLSession;
+
+@Deprecated
 public class TransactionInterceptor implements MethodInterceptor {
 
 	@Inject

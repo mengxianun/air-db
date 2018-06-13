@@ -604,16 +604,20 @@ public class Engine {
 			 * 如果字段没有指定表别名, 添加表别名
 			 * ***********临时方法, 待优化***********
 			 */
-			if (field.indexOf(".") == -1) {
+			String realField = field;
+			if (field.indexOf(" ") != -1) {
+				realField = field.split(" +")[0];
+			}
+			if (realField.indexOf(".") == -1) {
 				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
-				if (tableColumnConfig.containsKey(field)) {
+				if (tableColumnConfig.containsKey(realField)) {
 					field = SQLBuilder.DEFAULT_ALIAS + "." + field;
 				} else {
 					if (joins != null) {
 						for (Join join : joins) {
 							JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
 									join.getTargetTable());
-							if (joinTableColumnConfig.containsKey(field)) {
+							if (joinTableColumnConfig.containsKey(realField)) {
 								field = join.getTargetAlias() + "." + field;
 								break;
 							}

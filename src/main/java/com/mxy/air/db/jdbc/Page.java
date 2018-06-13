@@ -34,7 +34,7 @@ public class Page {
 		this.pageNum = pageNum;
 		this.pageSize = pageSize;
 		this.start = pageNum > 0 ? ((pageNum - 1) * pageSize + 1) : 1;
-		this.end = start + pageSize - 1;
+		this.end = start + pageSize;
 	}
 	
 	/**
@@ -45,7 +45,7 @@ public class Page {
 	public Page(long start, long end) {
 		this.start = start;
 		this.end = end;
-		this.pageSize = (int) (end - start + 1);
+		this.pageSize = (int) (end - start);
 		this.pageNum = start/pageSize + (start % pageSize) > 0 ? 1 : 0;
 	}
 

@@ -42,7 +42,7 @@ import com.mxy.air.json.JSONObject;
  */
 public class Translator {
 
-	public static final String DEFAULT_CONFIG_FILE = "datacolor.json";
+	public static final String DEFAULT_CONFIG_FILE = "xiaolongnv.json";
 
 	public static final String DEFAULT_DATASOURCE_POOL = "org.apache.tomcat.jdbc.pool.DataSource";
 

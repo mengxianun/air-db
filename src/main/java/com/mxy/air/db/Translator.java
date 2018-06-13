@@ -95,7 +95,6 @@ public class Translator {
 		JSONObject config = new JSONObject(DatacolorConfig.toMap());
 		JSONObject customConfig;
 		try {
-			System.out.println("-------------" + configFile);
 			customConfig = JSON.readObject(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
 		} catch (IOException | URISyntaxException e) {
 			throw new DbException(e);

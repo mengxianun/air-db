@@ -9,6 +9,7 @@ import com.google.inject.name.Names;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.db.jdbc.Dialect;
 import com.mxy.air.json.JSONObject;
 
 /**
@@ -74,6 +75,18 @@ public class AirContext {
 		return injector.getInstance(Key.get(SQLSession.class, Names.named(db)));
 	}
 	
+	public static JSONObject getAllDataSources() {
+		return config.getObject(DatacolorConfig.DATASOURCES);
+	}
+
+	public static JSONObject getDataSource(String db) {
+		return getAllDataSources().getObject(db);
+	}
+
+	public static Dialect getDialect(String db) {
+		return (Dialect) getDataSource(db).get(Datasource.DIALECT);
+	}
+
 	public static void addDbTableConfig(String db, JSONObject dbTableConfig) {
 		getAllTableConfig().put(db, dbTableConfig);
 	}

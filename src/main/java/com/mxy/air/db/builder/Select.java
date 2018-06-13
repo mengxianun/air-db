@@ -44,6 +44,7 @@ public class Select extends SQLBuilder {
 	public Select build() {
 		if (db == null)
 			db = AirContext.getDefaultDb();
+		dialect = AirContext.getDialect(db);
 		JSONObject tableConfigs = AirContext.getAllTableConfig(db);
 		// 主表的配置
 		JSONObject tableConfig = tableConfigs.getObject(table);

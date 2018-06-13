@@ -29,6 +29,7 @@ public class Update extends SQLBuilder {
 	public Update build() {
 		if (db == null)
 			db = AirContext.getDefaultDb();
+		dialect = AirContext.getDialect(db);
 		// 配置
 		JSONObject tableConfig = AirContext.getTableConfig(db, table);
 		if (tableConfig == null) {

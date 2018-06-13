@@ -336,6 +336,17 @@ public class Translator {
 	 */
 	public String translate(String json) throws SQLException {
 		JSONObject object = new JSONObject(json);
+		if (object.containsKey(Type.STRUCT)) {
+			String table = object.getString(Type.STRUCT);
+			String db = AirContext.getDefaultDb();
+			if (table.indexOf(".") != -1) {
+				String[] dbTable = table.split("\\.");
+				db = dbTable[0];
+				table = dbTable[1];
+			}
+			AirContext.check(db, table);
+			return AirContext.getTableConfig(db, table).toString();
+		}
 		if (object.containsKey(Type.TRANSACTION)) { // 事务操作
 			String db = null;
 			List<Engine> engines = new ArrayList<>();

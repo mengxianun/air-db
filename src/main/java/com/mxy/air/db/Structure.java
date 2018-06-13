@@ -76,7 +76,12 @@ public enum Structure {
 		/*
 		 * 事务
 		 */
-		TRANSACTION;
+		TRANSACTION,
+
+		/*
+		 * 数据库表配置结构
+		 */
+		STRUCT;
 		
 		public static Type from(String name) {
 			for (Type type : values()) {

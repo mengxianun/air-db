@@ -421,6 +421,23 @@ public class Engine {
 								join.getTargetTable());
 						if (joinTableColumnConfig.containsKey(field)) {
 							field = join.getTargetAlias() + "." + field;
+							break;
+						}
+					}
+				}
+			}
+		} else {
+			String[] whereTableField = field.split("\\.");
+			String whereTable = whereTableField[0];
+			String whereField = whereTableField[1];
+			if (whereTable.equals(table)) {
+				field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+			} else {
+				if (joins != null) {
+					for (Join join : joins) {
+						if (whereTable.equals(join.getTargetTable())) {
+							field = join.getTargetAlias() + "." + whereField;
+							break;
 						}
 					}
 				}

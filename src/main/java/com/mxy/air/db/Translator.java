@@ -95,6 +95,7 @@ public class Translator {
 		JSONObject config = new JSONObject(DatacolorConfig.toMap());
 		JSONObject customConfig;
 		try {
+			System.out.println("-------------" + configFile);
 			customConfig = JSON.readObject(configFile == null ? DEFAULT_CONFIG_FILE : configFile);
 		} catch (IOException | URISyntaxException e) {
 			throw new DbException(e);
@@ -250,6 +251,9 @@ public class Translator {
 	private JSONObject readAllDbTablesConfig(String tablesConfigPath, Set<String> dbs, String defaultDb)
 			throws IOException, URISyntaxException {
 		JSONObject allDbTablesConfig = new JSONObject();
+		// 数据库表配置路径的根路径下的数据库表配置, 该路径下的数据库表配置将被当作为默认数据源的数据库表配置
+		// 当该路径下的数据库表配置和数据源路径下的数据库表配置同时存在时, 数据源路径下的数据库表配置优先
+		JSONObject rootDbTablesConfig = new JSONObject();
 		Path configPath = JSON.getPath(tablesConfigPath);
 		if (configPath == null)
 			return allDbTablesConfig;
@@ -259,9 +263,13 @@ public class Translator {
 				try {
 					// 根目录下的表配置文件, 默认为默认数据源的表配置
 					if (Files.isSameFile(parentPath, configPath)) {
-						JSONObject dbConfig = readDbTableConfig(allDbTablesConfig.getObject(defaultDb), defaultDb,
-								path);
-						allDbTablesConfig.put(defaultDb, dbConfig);
+						JSONObject dbConfig = allDbTablesConfig.getObject(defaultDb);
+						if (dbConfig == null) {
+							dbConfig = new JSONObject();
+							allDbTablesConfig.put(defaultDb, dbConfig);
+						}
+						readDbTableConfig(dbConfig, defaultDb, path);
+						rootDbTablesConfig.put(defaultDb, dbConfig);
 						return;
 					} else {
 						String parentPathString = parentPath.getFileName().toString();
@@ -278,6 +286,14 @@ public class Translator {
 			});
 		} catch (IOException e) {
 			throw new DbException(e);
+		}
+		/*
+		 * 待优化
+		 */
+		if (!JSON.isEmpty(rootDbTablesConfig)) {
+			JSONObject defaultDbTablesConfig = rootDbTablesConfig.getObject(defaultDb);
+			defaultDbTablesConfig.merge(allDbTablesConfig.getObject(defaultDb));
+			allDbTablesConfig.put(defaultDb, defaultDbTablesConfig);
 		}
 		return allDbTablesConfig;
 	}
@@ -321,9 +337,7 @@ public class Translator {
 	 */
 	public String translate(String json) throws SQLException {
 		JSONObject object = new JSONObject(json);
-		Engine engine = new Engine(object).parse();
-		Type type = engine.getType();
-		if (type == Type.TRANSACTION) { // 事务操作
+		if (object.containsKey(Type.TRANSACTION)) { // 事务操作
 			String db = null;
 			List<Engine> engines = new ArrayList<>();
 			JSONArray transArray = object.getArray(Type.TRANSACTION);
@@ -340,6 +354,7 @@ public class Translator {
 			}
 			return handler.transaction(db, engines).toString();
 		}
+		Engine engine = new Engine(object).parse();
 		return handler.handle(engine).toString();
 	}
 

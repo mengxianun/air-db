@@ -34,7 +34,7 @@ public enum DatacolorConfig {
 	/*
 	 * 主数据源
 	 */
-	DEFAULT_DATASOURCE("default"),
+	DEFAULT_DATASOURCE(null),
 
 	/*
 	 * 表信息配置文件路径

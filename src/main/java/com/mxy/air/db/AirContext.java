@@ -58,10 +58,11 @@ public class AirContext {
 	}
 
 	public static String getDefaultDb() {
-		if (config.containsKey(DatacolorConfig.DEFAULT_DATASOURCE)) {
-			return config.getString(DatacolorConfig.DEFAULT_DATASOURCE);
-		} else {
+		String defaultDb = config.getString(DatacolorConfig.DEFAULT_DATASOURCE);
+		if (Strings.isNullOrEmpty(defaultDb)) {
 			return config.getObject(DatacolorConfig.DATASOURCES).getFirst().getKey();
+		} else {
+			return defaultDb;
 		}
 	}
 

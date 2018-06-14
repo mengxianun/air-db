@@ -227,7 +227,7 @@ public class Engine {
 		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
 		String where = whereEntry.getKey();
 		params.addAll(whereEntry.getValue());
-		return SQLBuilder.update(table, values, where, params);
+		return SQLBuilder.update(table, alias, values, where, params);
 	}
 
 	/**
@@ -244,7 +244,7 @@ public class Engine {
 		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
 		String where = whereEntry.getKey();
 		params.addAll(whereEntry.getValue());
-		return SQLBuilder.delete(table, where, params);
+		return SQLBuilder.delete(table, alias, where, params);
 	}
 
 	/**

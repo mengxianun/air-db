@@ -17,9 +17,10 @@ public class Update extends SQLBuilder {
 		statementType = StatementType.UPDATE;
 	}
 
-	public Update(String table, Map<String, Object> values, String where, List<Object> params) {
+	public Update(String table, String alias, Map<String, Object> values, String where, List<Object> params) {
 		this();
 		this.table = table;
+		this.alias = alias;
 		this.values = values;
 		this.where = where;
 		this.params.addAll(params);
@@ -37,7 +38,7 @@ public class Update extends SQLBuilder {
 		}
 		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		StringBuilder builder = new StringBuilder();
-		builder.append("update ").append(table).append(" set ");
+		builder.append("update ").append(table).append(" ").append(alias).append(" set ");
 		StringBuilder columnBuilder = new StringBuilder();
 		List<Object> updateParams = new ArrayList<>();
 		boolean comma = false;
@@ -51,7 +52,7 @@ public class Update extends SQLBuilder {
 			if (comma) {
 				columnBuilder.append(", ");
 			}
-			columnBuilder.append(column).append(" = ").append("?");
+			columnBuilder.append(alias).append(".").append(column).append(" = ").append("?");
 			// 关键字处理
 			updateParams.add(value);
 			comma = true;

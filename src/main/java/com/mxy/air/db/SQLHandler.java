@@ -117,10 +117,13 @@ public class SQLHandler {
 		// 方法返回值, 多个数据库生成的id组成的数组, 包括关联表id
 		JSONObject result = new JSONObject(builder.values());
 		if (key != null) { // SQL操作返回主键为空, 则返回请求数据中的主键值
-			String keyColumn = tableConfig.containsKey(TableConfig.PRIMARY_KEY)
-					? tableConfig.getString(TableConfig.PRIMARY_KEY)
-					: TableConfig.PRIMARY_KEY.toString();
-			result.put(keyColumn, key);
+			/*
+			 * 返回插入的主键, 待解决
+			 */
+			//			String keyColumn = tableConfig.containsKey(TableConfig.PRIMARY_KEY)
+			//					? tableConfig.getString(TableConfig.PRIMARY_KEY)
+			//					: TableConfig.PRIMARY_KEY.toString();
+			//			result.put(keyColumn, key);
 		}
 		return result;
 	}

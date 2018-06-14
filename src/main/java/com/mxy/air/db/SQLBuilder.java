@@ -84,12 +84,13 @@ public abstract class SQLBuilder {
 		return new Insert(table, values);
 	}
 
-	public static Update update(String table, Map<String, Object> values, String where, List<Object> params) {
-		return new Update(table, values, where, params);
+	public static Update update(String table, String alias, Map<String, Object> values, String where,
+			List<Object> params) {
+		return new Update(table, alias == null ? DEFAULT_ALIAS : alias, values, where, params);
     }
 
-	public static Delete delete(String table, String where, List<Object> params) {
-		return new Delete(table, where, params);
+	public static Delete delete(String table, String alias, String where, List<Object> params) {
+		return new Delete(table, alias == null ? DEFAULT_ALIAS : alias, where, params);
     }
     
 	protected abstract SQLBuilder build();

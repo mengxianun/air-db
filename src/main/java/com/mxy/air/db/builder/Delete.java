@@ -11,9 +11,10 @@ public class Delete extends SQLBuilder {
 		statementType = StatementType.DELETE;
 	}
 
-	public Delete(String table, String where, List<Object> params) {
+	public Delete(String table, String alias, String where, List<Object> params) {
 		this();
 		this.table = table;
+		this.alias = alias;
 		this.where = where;
 		this.params.addAll(params);
 		this.whereParams.addAll(params);
@@ -24,7 +25,7 @@ public class Delete extends SQLBuilder {
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
 		StringBuilder builder = new StringBuilder();
-		builder.append("delete from ").append(table);
+		builder.append("delete from ").append(table).append(" ").append(alias);
 		if (!isEmpty(where)) {
 			builder.append(" where ").append(where);
 		}

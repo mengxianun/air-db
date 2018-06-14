@@ -25,7 +25,7 @@ public class Delete extends SQLBuilder {
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
 		StringBuilder builder = new StringBuilder();
-		builder.append("delete from ").append(table).append(" ").append(alias);
+		builder.append("delete ").append(alias).append(" from ").append(table).append(" ").append(alias);
 		if (!isEmpty(where)) {
 			builder.append(" where ").append(where);
 		}

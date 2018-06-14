@@ -68,7 +68,12 @@ public class Engine {
 	
 	private String alias;
 
-	private List<Join> joins;
+	private List<Join> joins = new ArrayList<>();
+
+	/*
+	 * A join B, B join C  临时
+	 */
+	private List<String> tempJoinTables = new ArrayList<>();
 
 	public Engine() {}
 
@@ -266,7 +271,6 @@ public class Engine {
 		if (join == null) {
 			return null;
 		}
-		List<Join> joins = new ArrayList<>();
 		if (join instanceof JSONArray) { // join多个表
 			JSONArray joinArray = (JSONArray) join;
 			for (Object joinObject : joinArray.list()) {
@@ -324,6 +328,13 @@ public class Engine {
 		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		String[] joinTableAliasInfo = joinTable.split(" ");
 		String joinTableName = joinTableAliasInfo[0];
+		/*
+		 * A join B, B join C /////////////////////////
+		 */
+		tempJoinTables.add(joinTableName);
+		/*
+		 * 
+		 */
 		String joinTableAlias = joinTableAliasInfo.length > 1 ? joinTableAliasInfo[1] : null;
 		// 循环主表的每个列, 找到配置了主表关联关系的配置
 		for (Entry<String, Object> columnConfigObject : columnsConfig.entrySet()) {
@@ -339,6 +350,46 @@ public class Engine {
 				// 主表的关联字段为join表中配置的target_column
 				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
 				return new Join(table, alias, column, joinTableName, joinTableAlias, targetColumn, joinType);
+			}
+		}
+		/*
+		 * A join B, B join C
+		 */
+		for (String tempJoinTable : tempJoinTables) {
+			//					boolean existJoin = false;
+			//					for (Join tempJoin : joins) {
+			//						if (tempJoin.getTargetTable().equals(tempJoinTable)) {
+			//							existJoin = true;
+			//							break;
+			//						}
+			//					}
+			if (joinTable.equals(tempJoinTable)) {
+				continue;
+			}
+			JSONObject tempTableConfig = AirContext.getTableConfig(db, tempJoinTable);
+			JSONObject tempColumnsConfig = tempTableConfig != null ? tempTableConfig.getObject(TableConfig.COLUMNS)
+					: null;
+			for (Entry<String, Object> tempColumnConfigObject : tempColumnsConfig.entrySet()) {
+				String tempColumn = tempColumnConfigObject.getKey();
+				JSONObject tempColumnConfig = (JSONObject) tempColumnConfigObject.getValue();
+				if (tempColumnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+					JSONObject association = tempColumnConfig.getObject(TableConfig.Column.ASSOCIATION);
+					String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
+					// 如果主表的该字段配置的关联表不是joinTable
+					if (!joinTable.equals(targetTable)) {
+						continue;
+					}
+					// 主表的关联字段为join表中配置的target_column
+					String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
+					String tempAlias = null;
+					for (Join tempJoin : joins) {
+						if (tempJoin.getTargetTable().equals(tempJoinTable)) {
+							tempAlias = tempJoin.getTargetAlias();
+						}
+					}
+					return new Join(tempJoinTable, tempAlias, tempColumn, joinTableName, joinTableAlias, targetColumn,
+							joinType);
+				}
 			}
 		}
 		return null;

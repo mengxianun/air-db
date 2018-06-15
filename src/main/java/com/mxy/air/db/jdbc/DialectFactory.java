@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import javax.sql.DataSource;
 
 import com.mxy.air.db.DbException;
+import com.mxy.air.db.jdbc.dialect.ElasticsearchDialect;
 import com.mxy.air.db.jdbc.dialect.MySQLDialect;
 import com.mxy.air.db.jdbc.dialect.OracleDialect;
 
@@ -20,6 +21,7 @@ public class DialectFactory {
 	static {
 		dialectMap.put("mysql", MySQLDialect.class);
 		dialectMap.put("oracle", OracleDialect.class);
+		dialectMap.put("elasticsearch", ElasticsearchDialect.class);
 	}
 
 	/**

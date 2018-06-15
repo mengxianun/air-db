@@ -161,6 +161,10 @@ public enum Structure {
 		LT("<", "<"),
 		LTE("<=", "<="),
 		IN(",", "in"),
+		/*
+		 * op格式暂定未定
+		 */
+		NOT_IN("", "not in"),
 		BETWEEN("~", "between"),
 		LIKE("%=", "like"),
 		

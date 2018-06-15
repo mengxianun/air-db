@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
+import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Native;
 import com.mxy.air.db.config.DatacolorConfig;
@@ -69,6 +70,8 @@ public class Engine {
 	private String alias;
 
 	private List<Join> joins = new ArrayList<>();
+
+	private List<Condition> conditions = new ArrayList<>();
 
 	/*
 	 * A join B, B join C  临时
@@ -131,6 +134,10 @@ public class Engine {
 		default:
 			break;
 		}
+		/*
+		 * 临时添加Conditions
+		 */
+		builder.conditions(conditions);
 		builder.db(db);
 		//		builder.build();
 		return this;
@@ -501,6 +508,9 @@ public class Engine {
 				params.add(processValue(values[0]));
 				params.add(processValue(values[1]));
 				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + BETWEEN.sql() + " ? and ?";
+				//
+				//				conditions.add(
+				//						new Condition(op, field, new Object[] { processValue(values[0]), processValue(values[1]) }));
 			} else if (value.indexOf(IN.op()) > 0) { // in
 				List<Object> inParams = Arrays.stream(value.split(IN.op())).map(v -> processValue(v))
 						.collect(Collectors.toList());
@@ -508,13 +518,21 @@ public class Engine {
 				// 将所有元素替换为?占位符 a,b,c -> ?,?,?
 				value = value.replaceAll("((?!,).)*", "?").replaceAll("(\\?)+", "?");
 				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + IN.sql() + " (" + value + ")";
+				//
+				//				conditions.add(new Condition(op, field, inParams));
 			} else {
-				params.add(processValue(value));
+				Object processValue = processValue(value);
+				params.add(processValue);
 				sql = field + " " + op.sql() + " ?";
+				//
+				//				conditions.add(new Condition(op, field, processValue));
 			}
 		} else {
-			params.add(processValue(value));
+			Object processValue = processValue(value);
+			params.add(processValue);
 			sql = field + " " + op.sql() + " ?";
+			//
+			//			conditions.add(new Condition(op, field, processValue));
 		}
 		return new SimpleImmutableEntry<String, List<Object>>(sql, params);
 	}

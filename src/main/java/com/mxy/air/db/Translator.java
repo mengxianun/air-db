@@ -14,8 +14,7 @@ import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
-import org.apache.tomcat.jdbc.pool.PoolProperties;
-
+import com.alibaba.druid.pool.DruidDataSource;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -29,7 +28,9 @@ import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.interceptors.SQLLogInterceptor;
+import com.mxy.air.db.jdbc.Dialect;
 import com.mxy.air.db.jdbc.DialectFactory;
+import com.mxy.air.db.jdbc.dialect.ElasticsearchDialect;
 import com.mxy.air.json.JSON;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
@@ -44,7 +45,7 @@ public class Translator {
 
 	public static final String DEFAULT_CONFIG_FILE = "xiaolongnv.json";
 
-	public static final String DEFAULT_DATASOURCE_POOL = "org.apache.tomcat.jdbc.pool.DataSource";
+	public static final String DEFAULT_DATASOURCE_POOL = "com.alibaba.druid.pool.DruidDataSource";
 
 	private SQLHandler handler;
 
@@ -101,26 +102,13 @@ public class Translator {
 		}
 		// 覆盖默认配置
 		config.merge(customConfig);
-		/**
-		 * 读取数据库表配置文件
-		 */
-		String tablesConfigPath = config.containsKey(DatacolorConfig.DB_TABLE_CONFIG_PATH)
-				? config.getString(DatacolorConfig.DB_TABLE_CONFIG_PATH)
-				: DatacolorConfig.DB_TABLE_CONFIG_PATH.value().toString();
 		// 默认数据源
 		String defaultDb = config.getString(DatacolorConfig.DEFAULT_DATASOURCE);
 		JSONObject dbObject = config.getObject(DatacolorConfig.DATASOURCES);
 		if (defaultDb == null && dbObject != null) {
 			defaultDb = dbObject.getFirst().getKey();
 		}
-		JSONObject dbTableConfig;
-		try {
-			Set<String> dbs = dbObject == null ? new HashSet<>() : dbObject.keySet();
-			dbTableConfig = readAllDbTablesConfig(tablesConfigPath, dbs, defaultDb);
-		} catch (IOException | URISyntaxException e) {
-			throw new DbException(e);
-		}
-		config.put(DatacolorConfig.DB_TABLE_CONFIG, dbTableConfig);
+		Set<String> dbs = dbObject == null ? new HashSet<>() : dbObject.keySet();
 		/*
 		 * 数据源
 		 */
@@ -134,9 +122,33 @@ public class Translator {
 		} else {
 			// 手动指定数据源时, 暂时只考虑第一个数据源, 多数据源指定待实现
 			DataSource dataSource = dataSources[0];
-			dss = new JSONObject().put(DatacolorConfig.DEFAULT_DATASOURCE.value().toString(), dataSource);
+			JSONObject dataSourceObject = new JSONObject();
+			dataSourceObject.put(Datasource.SOURCE, dataSource);
+			if (dataSource instanceof DruidDataSource) {
+				String url = ((DruidDataSource) dataSource).getUrl();
+				dataSourceObject.put(Datasource.DIALECT, DialectFactory.getDialect(url));
+			} else {
+				dataSourceObject.put(Datasource.DIALECT, DialectFactory.getDialect(dataSource));
+			}
+			dss = new JSONObject().put(DatacolorConfig.DEFAULT_DATASOURCE.toString().toLowerCase(), dataSourceObject);
+			defaultDb = DatacolorConfig.DEFAULT_DATASOURCE.toString().toLowerCase();
+			dbs.add(defaultDb);
+
 		}
 		config.put(DatacolorConfig.DATASOURCES, dss);
+		/**
+		 * 读取数据库表配置文件
+		 */
+		String tablesConfigPath = config.containsKey(DatacolorConfig.DB_TABLE_CONFIG_PATH)
+				? config.getString(DatacolorConfig.DB_TABLE_CONFIG_PATH)
+				: DatacolorConfig.DB_TABLE_CONFIG_PATH.value().toString();
+		JSONObject dbTableConfig;
+		try {
+			dbTableConfig = readAllDbTablesConfig(tablesConfigPath, dbs, defaultDb);
+		} catch (IOException | URISyntaxException e) {
+			throw new DbException(e);
+		}
+		config.put(DatacolorConfig.DB_TABLE_CONFIG, dbTableConfig);
 
 		/*
 		 * 绑定依赖注入对象
@@ -192,6 +204,11 @@ public class Translator {
 		JSONObject dbsConfig = AirContext.getConfig().getObject(DatacolorConfig.DATASOURCES);
 		Set<String> dbs = dbsConfig.keySet();
 		for (String db : dbs) {
+			Dialect dialect = AirContext.getDialect(db);
+			// 跳过ES数据源
+			if (dialect instanceof ElasticsearchDialect) {
+				break;
+			}
 			JSONObject dbTableConfig = AirContext.getAllTableConfig(db);
 			if (dbTableConfig == null) {
 				dbTableConfig = new JSONObject();
@@ -362,10 +379,17 @@ public class Translator {
 				}
 				engines.add(transEngine);
 			}
-			return handler.transaction(db, engines).toString();
+			AirContext.inState(db);
+			String result = handler.transaction(db, engines).toString();
+			AirContext.outState();
+			return result;
 		}
 		Engine engine = new Engine(object).parse();
-		return handler.handle(engine).toString();
+		String db = engine.getBuilder().db();
+		AirContext.inState(db);
+		String result = handler.handle(engine).toString();
+		AirContext.outState();
+		return result;
 	}
 
 	/**
@@ -420,19 +444,14 @@ public class Translator {
 	 * @param password
 	 * @return
 	 */
-	private static org.apache.tomcat.jdbc.pool.DataSource defaultDataSource(String driverClassName, String url,
+	private static DruidDataSource defaultDataSource(String driverClassName, String url,
 			String username, String password) {
-		PoolProperties p = new PoolProperties();
-		p.setUrl(url);
-		p.setDriverClassName(driverClassName);
-		p.setUsername(username);
-		p.setPassword(password);
-
+		DruidDataSource dataSource = new DruidDataSource();
+		dataSource.setDriverClassName(driverClassName);
+		dataSource.setUrl(url);
+		dataSource.setUsername(username);
+		dataSource.setPassword(password);
 		// 其他默认参数待添加
-
-		org.apache.tomcat.jdbc.pool.DataSource dataSource = new org.apache.tomcat.jdbc.pool.DataSource();
-		dataSource.setPoolProperties(p);
-
 		return dataSource;
 	}
 

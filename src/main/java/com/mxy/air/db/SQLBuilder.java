@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Delete;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Join;
@@ -64,6 +65,9 @@ public abstract class SQLBuilder {
 
 	// where条件语句参数
 	protected List<Object> whereParams = new ArrayList<>();
+
+	// 条件
+	protected List<Condition> conditions = new ArrayList<>();
 
 	// 方言
 	protected Dialect dialect;
@@ -267,6 +271,15 @@ public abstract class SQLBuilder {
 	public SQLBuilder whereParams(List<Object> whereParams) {
 		this.whereParams = whereParams;
 		this.params = whereParams;
+		return this;
+	}
+
+	public List<Condition> conditions() {
+		return this.conditions;
+	}
+
+	public SQLBuilder conditions(List<Condition> conditions) {
+		this.conditions = conditions;
 		return this;
 	}
 

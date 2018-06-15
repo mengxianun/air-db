@@ -9,7 +9,12 @@ import com.google.inject.name.Names;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.db.config.TableConfig.Column;
+import com.mxy.air.db.jdbc.BasicRowProcessor;
 import com.mxy.air.db.jdbc.Dialect;
+import com.mxy.air.db.jdbc.RowProcessor;
+import com.mxy.air.db.jdbc.dialect.ElasticsearchDialect;
+import com.mxy.air.db.jdbc.processor.ElasticsearchRowProcessor;
 import com.mxy.air.json.JSONObject;
 
 /**
@@ -22,6 +27,8 @@ public class AirContext {
 	private static JSONObject config;
 
 	private static Injector injector;
+
+	public static ThreadLocal<String> threadLocalDb = new ThreadLocal<>();
 
 	public static void init(JSONObject config, Injector injector) {
 		AirContext.config = config;
@@ -56,6 +63,11 @@ public class AirContext {
 
 	public static JSONObject getAllTableColumnConfig(String db, String table) {
 		return getAllTableConfig(db).getObject(table).getObject(TableConfig.COLUMNS);
+	}
+
+	public static String getTableColumnType(String db, String table, String column) {
+		JSONObject tableColumnConfigs = getAllTableColumnConfig(db, table);
+		return tableColumnConfigs.getObject(column).getString(Column.TYPE);
 	}
 
 	public static String getDefaultDb() {
@@ -100,6 +112,12 @@ public class AirContext {
 		if (Strings.isNullOrEmpty(db) || Strings.isNullOrEmpty(table)) {
 			return;
 		}
+		/*
+		 * 跳过ES
+		 */
+		if (getDialect(db) instanceof ElasticsearchDialect) {
+			return;
+		}
 		if (!getAllTableConfig().containsKey(db)) {
 			throw new DbException(String.format("数据源 [%s] 不存在", db));
 		}
@@ -112,6 +130,40 @@ public class AirContext {
 		
 		PRIMARY_TABLE, PRIMARY_COLUMN, TARGET_TABLE, TARGET_COLUMN;
 
+	}
+
+	public static void inState(String db) {
+		threadLocalDb.set(db);
+	}
+
+	public static void outState() {
+		String db = threadLocalDb.get();
+		if (db != null) {
+			threadLocalDb.remove();
+		}
+	}
+
+	public static String getCurrentDb() {
+		return threadLocalDb.get();
+	}
+
+	public static RowProcessor getRowProcessor() {
+		if (isElasticsearch()) {
+			return new ElasticsearchRowProcessor();
+		} else {
+			return new BasicRowProcessor();
+		}
+	}
+
+	public static boolean isElasticsearch() {
+		String db = threadLocalDb.get();
+		if (db != null) {
+			Dialect dialect = getDialect(db);
+			if (dialect instanceof ElasticsearchDialect) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 }

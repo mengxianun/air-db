@@ -171,12 +171,14 @@ public class SQLSession {
 
 	@SQLLog
 	public Map<String, Object> detail(String sql, Object[] params) throws SQLException {
-		return runner.query(getConnection(), isCloseConnection(), sql, new MapHandler(), params);
+		return runner.query(getConnection(), isCloseConnection(), sql, new MapHandler(AirContext.getRowProcessor()),
+				params);
 	}
 
 	@SQLLog
 	public List<Map<String, Object>> list(String sql, Object[] params) throws SQLException {
-		return runner.query(getConnection(), isCloseConnection(), sql, new MapListHandler(), params);
+		return runner.query(getConnection(), isCloseConnection(), sql, new MapListHandler(AirContext.getRowProcessor()),
+				params);
 	}
 
 	@SQLLog

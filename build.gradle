@@ -10,6 +10,11 @@ dependencies {
   implementation group: 'com.google.guava', name: 'guava', version: '24.1-jre'
   implementation group: 'com.google.inject', name: 'guice', version: '4.2.0'
   implementation 'com.alibaba:druid:1.0.15'
+  // Elasticsearch
+  implementation 'org.elasticsearch:elasticsearch:6.2.4'
+  implementation 'org.elasticsearch.client:transport:6.2.4'
+  implementation 'org.nlpcn:elasticsearch-sql:6.2.4'
+  implementation 'org.elasticsearch.plugin:transport-netty4-client:6.2.4'
 }
 
 task sourceJar(type: Jar) {
@@ -21,7 +26,7 @@ publishing {
     mavenJava(MavenPublication) {
       groupId 'com.mxy.air'
       artifactId 'air-db'
-      version '2.2.0'
+      version '2.5.0'
 
       from components.java
 

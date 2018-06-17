@@ -67,6 +67,9 @@ public class AirContext {
 
 	public static String getTableColumnType(String db, String table, String column) {
 		JSONObject tableColumnConfigs = getAllTableColumnConfig(db, table);
+		if (tableColumnConfigs == null) {
+			return null;
+		}
 		return tableColumnConfigs.getObject(column).getString(Column.TYPE);
 	}
 
@@ -153,6 +156,16 @@ public class AirContext {
 		} else {
 			return new BasicRowProcessor();
 		}
+	}
+
+	public static boolean isElasticsearch(String db) {
+		if (db != null) {
+			Dialect dialect = getDialect(db);
+			if (dialect instanceof ElasticsearchDialect) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static boolean isElasticsearch() {

@@ -9,12 +9,14 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
 import com.alibaba.druid.pool.DruidDataSource;
+import com.alibaba.druid.pool.ElasticSearchDruidDataSourceFactory;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -418,8 +420,31 @@ public class Translator {
 			String type = dsJSONOjbect.containsKey(DatacolorConfig.Datasource.TYPE)
 					? dsJSONOjbect.getString(DatacolorConfig.Datasource.TYPE)
 					: DEFAULT_DATASOURCE_POOL;
-			// 删除TYPE属性, datasource转换成DataSource. TYPE只是datacolor的标识, 不是DataSource的属性值
+			// 删除TYPE属性, datasource转换成DataSource. TYPE只是air-db的标识, 不是DataSource的属性值
 			dsJSONOjbect.remove(DatacolorConfig.Datasource.TYPE);
+			JSONObject dataSource = new JSONObject();
+			dataSource.put(Datasource.TYPE, type);
+			if (dsJSONOjbect.containsKey("url")) {
+				String url = dsJSONOjbect.getString("url");
+				Dialect dialect = DialectFactory.getDialect(url);
+				dataSource.put(Datasource.DIALECT, dialect);
+				if (dialect instanceof ElasticsearchDialect) {
+					Properties properties = new Properties();
+					for (Map.Entry<String, Object> dsEntry : dsJSONOjbect.entrySet()) {
+						properties.put(dsEntry.getKey(), dsEntry.getValue());
+					}
+					try {
+						DruidDataSource dds = (DruidDataSource) ElasticSearchDruidDataSourceFactory
+								.createDataSource(properties);
+						dataSource.put(Datasource.SOURCE, dds);
+						dataSources.put(dbName, dataSource);
+						break;
+					} catch (Exception e) {
+						throw new DbException(e);
+					}
+				}
+			}
+
 			Class<?> clazz = null;
 			try {
 				clazz = Class.forName(type);
@@ -427,8 +452,6 @@ public class Translator {
 				e.printStackTrace();
 			}
 			DataSource ds = (DataSource) dsJSONOjbect.toBean(clazz);
-			JSONObject dataSource = new JSONObject();
-			dataSource.put(Datasource.TYPE, type);
 			dataSource.put(Datasource.SOURCE, ds);
 			dataSource.put(Datasource.DIALECT, DialectFactory.getDialect(ds));
 			dataSources.put(dbName, dataSource);

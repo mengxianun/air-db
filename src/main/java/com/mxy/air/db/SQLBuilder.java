@@ -2,6 +2,7 @@ package com.mxy.air.db;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,8 +25,6 @@ public abstract class SQLBuilder {
 	protected enum StatementType {
 		SELECT, INSERT, UPDATE, DELETE
 	}
-
-	public static final String DEFAULT_ALIAS = "t";
 
 	// SQL操作类型
 	protected StatementType statementType;
@@ -69,6 +68,9 @@ public abstract class SQLBuilder {
 	// 条件
 	protected List<Condition> conditions = new ArrayList<>();
 
+	// 表别名, key为表名, value为表别名
+	protected Map<String, String> aliases = new HashMap<>();
+
 	// 方言
 	protected Dialect dialect;
 
@@ -77,10 +79,11 @@ public abstract class SQLBuilder {
 	}
 
 	public static Select select(String table, String alias, List<Join> joins, String[] columns, String where,
-			List<Object> params, String[] groups,
+			List<Object> params, List<Condition> conditions, String[] groups,
 			String[] orders,
 			long[] limit) {
-		return new Select(table, alias == null ? DEFAULT_ALIAS : alias, joins, columns, where, params, groups, orders,
+		return new Select(table, alias, joins, columns, where, params, conditions,
+				groups, orders,
 				limit);
     }
 
@@ -90,11 +93,11 @@ public abstract class SQLBuilder {
 
 	public static Update update(String table, String alias, Map<String, Object> values, String where,
 			List<Object> params) {
-		return new Update(table, alias == null ? DEFAULT_ALIAS : alias, values, where, params);
+		return new Update(table, alias, values, where, params);
     }
 
 	public static Delete delete(String table, String alias, String where, List<Object> params) {
-		return new Delete(table, alias == null ? DEFAULT_ALIAS : alias, where, params);
+		return new Delete(table, alias, where, params);
     }
     
 	protected abstract SQLBuilder build();

@@ -1,27 +1,13 @@
 package com.mxy.air.db.builder;
 
-import static com.mxy.air.db.Structure.Operator.BETWEEN;
-import static com.mxy.air.db.Structure.Operator.EQUAL;
-import static com.mxy.air.db.Structure.Operator.GT;
-import static com.mxy.air.db.Structure.Operator.GTE;
-import static com.mxy.air.db.Structure.Operator.IN;
-import static com.mxy.air.db.Structure.Operator.LIKE;
-import static com.mxy.air.db.Structure.Operator.LT;
-import static com.mxy.air.db.Structure.Operator.LTE;
-import static com.mxy.air.db.Structure.Operator.NOT_EQUAL;
-import static com.mxy.air.db.Structure.Operator.NOT_IN;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
+import com.google.common.base.Strings;
 import com.mxy.air.db.AirContext;
 import com.mxy.air.db.Structure.Operator;
-import com.mxy.air.json.JSONArray;
-import com.mxy.air.json.JSONObject;
 
 /**
  * SQL条件
@@ -29,6 +15,21 @@ import com.mxy.air.json.JSONObject;
  *
  */
 public class Condition {
+
+	/*
+	 * 数据库名称
+	 */
+	private String db;
+
+	/*
+	 * 数据库表
+	 */
+	private String table;
+
+	/*
+	 * 数据库表别名
+	 */
+	private String alias;
 
 	/*
 	 * 连接符
@@ -50,129 +51,20 @@ public class Condition {
 	 */
 	private Object value;
 
-	/*
-	 * 数据库名称
+	/**
+	 * 所有条件的真实值集合
 	 */
-	private String db;
+	private List<Object> values = new ArrayList<>();
 
-	/*
-	 * 数据库表
-	 */
-	private String table;
-
-	/*
-	 * 数据库表别名
-	 */
-	private String alias;
-
-	private String conditionString;
-
-	private JSONObject conditionObject;
-
-	private JSONArray conditionArray;
-
-	public Condition(String db, String table, String alias) {
+	public Condition(String db, String table, String alias, Operator connector, Operator operator, String column,
+			Object value) {
 		this.db = db;
 		this.table = table;
 		this.alias = alias;
-	}
-
-	public Condition(Operator connector, Operator operator, String column, Object value) {
 		this.connector = connector;
 		this.operator = operator;
 		this.column = column;
 		this.value = value;
-	}
-
-	public Condition(String conditionString, String db, String table, String alias) {
-		this(db, table, alias);
-		this.conditionString = conditionString;
-		this.connector = Operator.AND;
-		parseString(conditionString);
-	}
-
-	public Condition(JSONObject conditionObject, String db, String table, String alias) {
-		this(db, table, alias);
-		this.conditionObject = conditionObject;
-		Entry<String, Object> entry = conditionObject.entrySet().iterator().next();
-		connector = Operator.from(entry.getKey());
-		Object conditionArray = entry.getValue();
-		if (conditionArray instanceof JSONArray) {
-			parseArray((JSONArray) conditionArray);
-		} else {
-			parseString(value.toString());
-		}
-	}
-
-	public Condition(JSONArray conditionArray, String db, String table, String alias) {
-		this(db, table, alias);
-		this.conditionArray = conditionArray;
-		this.connector = Operator.AND;
-		parseArray(conditionArray);
-	}
-
-	private void parseString(String conditionString) {
-		this.conditionString = conditionString;
-		this.connector = Operator.AND;
-		parseOperator(conditionString);
-		String[] kv = conditionString.split(this.operator.op());
-		this.column = kv[0];
-		this.value = kv[1];
-	}
-
-	private void parseArray(JSONArray conditionArray) {
-		List<Condition> conditions = new ArrayList<>();
-		List<Object> conditionList = conditionArray.toList();
-		for (Object condition : conditionList) {
-			if (condition instanceof JSONArray) {
-				conditions.add(new Condition((JSONArray) condition, this.db, this.table, this.alias));
-			} else if (condition instanceof JSONObject) {
-				conditions.add(new Condition((JSONObject) condition, this.db, this.table, this.alias));
-			} else {
-				conditions.add(new Condition(condition.toString(), this.db, this.table, this.alias));
-			}
-		}
-		this.value = conditions;
-	}
-
-	/**
-	 * 解析条件运算符
-	 * 
-	 * @param condition
-	 * @return
-	 */
-	private void parseOperator(String conditionString) {
-		if (conditionString.indexOf(LIKE.op()) > 0) { // like
-			this.operator = LIKE;
-		} else if (conditionString.indexOf(LTE.op()) > 0) {// 小于等于
-			this.operator = LTE;
-		} else if (conditionString.indexOf(GTE.op()) > 0) { // 大于等于
-			this.operator = GTE;
-		} else if (conditionString.indexOf(LT.op()) > 0) { // 小于
-			this.operator = LT;
-		} else if (conditionString.indexOf(GT.op()) > 0) { // 大于
-			this.operator = GT;
-		} else if (conditionString.indexOf(NOT_EQUAL.op()) > 0) {
-			String[] kv = conditionString.split(this.operator.op());
-			this.column = kv[0];
-			this.value = kv[1];
-			if (this.value.toString().indexOf(",") != -1) { // not in
-				this.operator = NOT_IN;
-			} else { // 不等于
-				this.operator = NOT_EQUAL;
-			}
-		} else if (conditionString.indexOf(EQUAL.op()) > 0) {
-			String[] kv = conditionString.split(this.operator.op());
-			this.column = kv[0];
-			this.value = kv[1];
-			if (this.value.toString().indexOf(",") != -1) { // in
-				this.operator = IN;
-			} else if (this.value.toString().indexOf("~") != -1) { // between
-				this.operator = BETWEEN;
-			} else { // 等于
-				this.operator = EQUAL;
-			}
-		}
 	}
 
 	public String sql() {
@@ -197,78 +89,88 @@ public class Condition {
 		if (value instanceof Collection) {
 			Collection<?> collection = (Collection<?>) value;
 			conditionBuilder.append("(");
-			for (Object nestedCondition : collection) {
-				if (nestedCondition instanceof Condition) {
-					conditionBuilder.append(((Condition) nestedCondition).sql());
+			boolean first = true;
+			for (Object nested : collection) {
+				Condition nestedCondition = (Condition) nested;
+				String sql = ((Condition) nestedCondition).sql();
+				if (first) {
+					if (sql.startsWith(Operator.AND.sql())) {
+						sql = sql.substring(4);
+					} else if (sql.startsWith(Operator.OR.sql())) {
+						sql = sql.substring(3);
+					}
+				} else {
+					conditionBuilder.append(" ");
+					first = false;
 				}
+				conditionBuilder.append(sql);
+				nestedCondition.getValues().forEach(values::add);
 			}
 			conditionBuilder.append(")");
 		/*
 		 * 2. 单个条件, 其他类型
 		 */
 		} else {
+			String aliasPrefix = Strings.isNullOrEmpty(alias) ? "" : alias + ".";
 			String type = AirContext.getTableColumnType(db, table, column);
-			value = wrap(value, type);
 			switch (operator) {
 			case EQUAL:
-				conditionBuilder.append(alias).append(column).append(" = ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" = ?");
 				break;
 			case NOT_EQUAL:
-				conditionBuilder.append(alias).append(column).append(" != ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" != ?");
 				break;
 			case GT:
-				conditionBuilder.append(alias).append(column).append(" > ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" > ?");
 				break;
 			case GTE:
-				conditionBuilder.append(alias).append(column).append(" >= ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" >= ?");
 				break;
 			case LT:
-				conditionBuilder.append(alias).append(column).append(" < ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" < ?");
 				break;
 			case LTE:
-				conditionBuilder.append(alias).append(column).append(" <= ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" <= ?");
 				break;
 			case IN:
-				conditionBuilder.append(alias).append(column).append(" in (");
+				conditionBuilder.append(aliasPrefix).append(column).append(" in (");
 				// 将所有元素替换为?占位符 a,b,c -> ?,?,?
 				String inString = value.toString().replaceAll("((?!,).)*", "?").replaceAll("(\\?)+", "?");
 				conditionBuilder.append(inString);
 				conditionBuilder.append(")");
 
-				List<String> inParams = Arrays.asList(value.toString().split(","));
-				value = inParams.stream().map(p -> wrap(p, type)).collect(Collectors.toList());
+				value = value.toString().split(",");
 				break;
 			case NOT_IN:
-				conditionBuilder.append(alias).append(column).append(" not in (");
+				conditionBuilder.append(aliasPrefix).append(column).append(" not in (");
 				// 将所有元素替换为?占位符 a,b,c -> ?,?,?
 				String notInString = value.toString().replaceAll("((?!,).)*", "?").replaceAll("(\\?)+", "?");
 				conditionBuilder.append(notInString);
 				conditionBuilder.append(")");
 
-				List<String> notInParams = Arrays.asList(value.toString().split(","));
-				value = notInParams.stream().map(p -> wrap(p, type)).collect(Collectors.toList());
+				value = value.toString().split(",");
 				break;
 			case BETWEEN:
-				conditionBuilder.append(alias).append(column).append(" between ? and ?");
-				Object[] betweenParams = (Object[]) value;
-				betweenParams[0] = wrap(betweenParams[0], type);
-				betweenParams[1] = wrap(betweenParams[1], type);
-				value = betweenParams;
+				conditionBuilder.append(aliasPrefix).append(column).append(" between ? and ?");
+				value = value.toString().split("~");
 				break;
 			case LIKE:
-				conditionBuilder.append(alias).append(column).append(" like ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" like ?");
 				break;
 
 			default:
 				break;
 			}
+			/*
+			 * 添加值
+			 */
+			if (value.getClass().isArray()) {
+				Arrays.stream((Object[]) value).forEach(v -> values.add(wrap(v, type)));
+			} else {
+				values.add(wrap(value, type));
+			}
 		}
 		String sql = conditionBuilder.toString().trim();
-		if (sql.startsWith(Operator.AND.sql())) {
-			sql = sql.substring(4);
-		} else if (sql.startsWith(Operator.OR.sql())) {
-			sql = sql.substring(3);
-		}
 		return sql;
 	}
 
@@ -280,12 +182,43 @@ public class Condition {
 	 */
 	private Object wrap(Object value, String type) {
 		if (type.equals("varchar")) {
-			if (value.toString().startsWith("'") && value.toString().endsWith("'")) {
-				return value;
-			}
-			return value = "'" + value + "'";
+			return value.toString();
+		} else if (type.equals("int")) {
+			return Integer.parseInt(value.toString());
 		}
 		return value;
+	}
+
+	public String getDb() {
+		return db;
+	}
+
+	public void setDb(String db) {
+		this.db = db;
+	}
+
+	public String getTable() {
+		return table;
+	}
+
+	public void setTable(String table) {
+		this.table = table;
+	}
+
+	public String getAlias() {
+		return alias;
+	}
+
+	public void setAlias(String alias) {
+		this.alias = alias;
+	}
+
+	public Operator getConnector() {
+		return connector;
+	}
+
+	public void setConnector(Operator connector) {
+		this.connector = connector;
 	}
 
 	public Operator getOperator() {
@@ -310,6 +243,14 @@ public class Condition {
 
 	public void setValue(Object value) {
 		this.value = value;
+	}
+
+	public List<Object> getValues() {
+		return values;
+	}
+
+	public void setValues(List<Object> values) {
+		this.values = values;
 	}
 
 }

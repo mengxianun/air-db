@@ -19,6 +19,7 @@ import static com.mxy.air.db.Structure.Operator.LT;
 import static com.mxy.air.db.Structure.Operator.LTE;
 import static com.mxy.air.db.Structure.Operator.NOT;
 import static com.mxy.air.db.Structure.Operator.NOT_EQUAL;
+import static com.mxy.air.db.Structure.Operator.NOT_IN;
 import static com.mxy.air.db.Structure.Order.MINUS;
 import static com.mxy.air.db.Structure.Order.PLUS;
 import static com.mxy.air.db.Structure.Type.DELETE;
@@ -33,11 +34,13 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Strings;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
@@ -57,6 +60,10 @@ import com.mxy.air.json.JSONObject;
  */
 public class Engine {
 
+	public static final String DEFAULT_ALIAS = "t";
+
+	public static final String DEFAULT_JOIN_TABLE_ALIAS_PREFIX = "j_";
+
 	private JSONObject object;
 
 	private SQLBuilder builder;
@@ -69,14 +76,17 @@ public class Engine {
 	
 	private String alias;
 
+	/*
+	 * 所有操作的表, 包括主表和join的表
+	 */
+	List<String> tables = new ArrayList<>();
+
 	private List<Join> joins = new ArrayList<>();
 
-	private List<Condition> conditions = new ArrayList<>();
+	private List<Condition> conditions;
 
-	/*
-	 * A join B, B join C  临时
-	 */
-	private List<String> tempJoinTables = new ArrayList<>();
+	// 表别名, key为表名, value为表别名
+	private Map<String, String> aliases = new HashMap<>();
 
 	public Engine() {}
 
@@ -102,11 +112,6 @@ public class Engine {
 		// 操作类型
 		parseType();
 		table = object.getString(type).trim();
-		if (table.indexOf(" ") != -1) { // 指定了表别名
-			String[] tableAliasString = table.split(" +");
-			table = tableAliasString[0];
-			alias = tableAliasString[1];
-		}
 		if (table.indexOf(".") != -1) { // 指定了数据源
 			String[] dbTableString = table.split("\\.");
 			db = dbTableString[0];
@@ -114,6 +119,15 @@ public class Engine {
 		}
 		if (db == null) {
 			db = AirContext.getDefaultDb();
+		}
+		/*
+		 * Elasticsearch 不添加别名
+		 */
+		if (!AirContext.isElasticsearch(db)) {
+			alias = DEFAULT_ALIAS;
+		}
+		if (!Strings.isNullOrEmpty(alias)) {
+			aliases.put(table, alias);
 		}
 		switch (type) {
 		case DETAIL:
@@ -137,7 +151,7 @@ public class Engine {
 		/*
 		 * 临时添加Conditions
 		 */
-		builder.conditions(conditions);
+		//		builder.conditions(conditions);
 		builder.db(db);
 		//		builder.build();
 		return this;
@@ -193,9 +207,10 @@ public class Engine {
 		// SQL参数
 		List<Object> params = new ArrayList<>();
 		// where
-		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
-		String where = whereEntry.getKey();
-		params.addAll(whereEntry.getValue());
+		//		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
+		//		String where = whereEntry.getKey();
+		//		params.addAll(whereEntry.getValue());
+		conditions = parseWhereNew(object.get(WHERE));
 		// group
 		String[] groups = parseGroup(object.get(GROUP));
 		// order
@@ -206,7 +221,7 @@ public class Engine {
 			Object[] limitArray = object.getArray(LIMIT).array();
 			limit = Arrays.stream(limitArray).mapToLong(i -> Long.parseLong(i.toString())).toArray();
 		}
-		return SQLBuilder.select(table, alias, joins, fields, where, params, groups, orders, limit);
+		return SQLBuilder.select(table, alias, joins, fields, null, params, conditions, groups, orders, limit);
 	}
 
 	/**
@@ -278,6 +293,25 @@ public class Engine {
 		if (join == null) {
 			return null;
 		}
+		/*
+		 * 获取所有操作的表
+		 */
+		tables.add(table);
+		if (join instanceof JSONArray) { // join多个表
+			JSONArray joinArray = (JSONArray) join;
+			for (Object joinObject : joinArray.list()) {
+				if (joinObject instanceof JSONObject) {
+					tables.add(((JSONObject) joinObject).entrySet().iterator().next().getValue().toString());
+				} else {
+					tables.add(joinObject.toString());
+				}
+			}
+		} else if (join instanceof JSONObject) {
+			tables.add(((JSONObject) join).entrySet().iterator().next().getValue().toString());
+		} else {
+			tables.add(join.toString());
+		}
+
 		if (join instanceof JSONArray) { // join多个表
 			JSONArray joinArray = (JSONArray) join;
 			for (Object joinObject : joinArray.list()) {
@@ -332,18 +366,10 @@ public class Engine {
 	 */
 	private Join parseJoin(String joinTable, JoinType joinType) {
 		JSONObject tableConfig = AirContext.getTableConfig(db, table);
-		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
-		String[] joinTableAliasInfo = joinTable.split(" ");
-		String joinTableName = joinTableAliasInfo[0];
+		JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
 		/*
-		 * A join B, B join C /////////////////////////
+		 * 该join的表是否与主表关联, 循环主表的每个列, 找到配置了主表关联关系的配置
 		 */
-		tempJoinTables.add(joinTableName);
-		/*
-		 * 
-		 */
-		String joinTableAlias = joinTableAliasInfo.length > 1 ? joinTableAliasInfo[1] : null;
-		// 循环主表的每个列, 找到配置了主表关联关系的配置
 		for (Entry<String, Object> columnConfigObject : columnsConfig.entrySet()) {
 			String column = columnConfigObject.getKey();
 			JSONObject columnConfig = (JSONObject) columnConfigObject.getValue();
@@ -351,52 +377,158 @@ public class Engine {
 				JSONObject association = columnConfig.getObject(TableConfig.Column.ASSOCIATION);
 				String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
 				// 如果主表的该字段配置的关联表不是joinTable
-				if (!joinTableName.equals(targetTable)) {
+				if (!joinTable.equals(targetTable)) {
 					continue;
 				}
 				// 主表的关联字段为join表中配置的target_column
 				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
-				return new Join(table, alias, column, joinTableName, joinTableAlias, targetColumn, joinType);
+				return new Join(table, alias, column, joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable,
+						targetColumn, joinType);
 			}
 		}
 		/*
-		 * A join B, B join C
+		 * 改join的表与其他join的表关联, 比如 A join B, B join C
 		 */
-		for (String tempJoinTable : tempJoinTables) {
-			//					boolean existJoin = false;
-			//					for (Join tempJoin : joins) {
-			//						if (tempJoin.getTargetTable().equals(tempJoinTable)) {
-			//							existJoin = true;
-			//							break;
-			//						}
-			//					}
-			if (joinTable.equals(tempJoinTable)) {
+		for (String tab : tables) {
+			/*
+			 * 跳过主表和join表自己, 
+			 */
+			if (tab.equals(table) || tab.equals(joinTable)) {
 				continue;
 			}
-			JSONObject tempTableConfig = AirContext.getTableConfig(db, tempJoinTable);
-			JSONObject tempColumnsConfig = tempTableConfig != null ? tempTableConfig.getObject(TableConfig.COLUMNS)
-					: null;
-			for (Entry<String, Object> tempColumnConfigObject : tempColumnsConfig.entrySet()) {
-				String tempColumn = tempColumnConfigObject.getKey();
-				JSONObject tempColumnConfig = (JSONObject) tempColumnConfigObject.getValue();
-				if (tempColumnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
-					JSONObject association = tempColumnConfig.getObject(TableConfig.Column.ASSOCIATION);
+			JSONObject otherJoinTableConfig = AirContext.getTableConfig(db, tab);
+			JSONObject otherJoinColumnsConfig = otherJoinTableConfig.getObject(TableConfig.COLUMNS);
+			for (Entry<String, Object> otherJoinColumnConfigObject : otherJoinColumnsConfig.entrySet()) {
+				String otherJoinColumn = otherJoinColumnConfigObject.getKey();
+				JSONObject otherJoinColumnConfig = (JSONObject) otherJoinColumnConfigObject.getValue();
+				if (otherJoinColumnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+					JSONObject association = otherJoinColumnConfig.getObject(TableConfig.Column.ASSOCIATION);
 					String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
-					// 如果主表的该字段配置的关联表不是joinTable
 					if (!joinTable.equals(targetTable)) {
 						continue;
 					}
-					// 主表的关联字段为join表中配置的target_column
 					String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
-					String tempAlias = null;
-					for (Join tempJoin : joins) {
-						if (tempJoin.getTargetTable().equals(tempJoinTable)) {
-							tempAlias = tempJoin.getTargetAlias();
-						}
-					}
-					return new Join(tempJoinTable, tempAlias, tempColumn, joinTableName, joinTableAlias, targetColumn,
+					return new Join(tab, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + tab, otherJoinColumn, joinTable,
+							DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable, targetColumn,
 							joinType);
 				}
+			}
+		}
+		return null;
+	}
+
+	private List<Condition> parseWhereNew(Object where) {
+		if (where == null) {
+			return Collections.emptyList();
+		}
+		List<Condition> conditions = new ArrayList<>();
+		if (where instanceof JSONArray) { // 多个条件
+			Object[] whereArray = ((JSONArray) where).array();
+			for (Object condition : whereArray) {
+				if (condition instanceof JSONArray) {
+					conditions.add(new Condition(null, null, null, Operator.AND, null, null, parseWhereNew(condition)));
+				} else if (condition instanceof JSONObject) {
+					Entry<String, Object> entry = ((JSONObject) condition).entrySet().iterator().next();
+					Operator connector = Operator.from(entry.getKey());
+					Object innerCondition = entry.getValue();
+
+					if (innerCondition instanceof JSONArray) {
+						conditions.add(
+								new Condition(null, null, null, connector, null, null, parseWhereNew(innerCondition)));
+					} else {
+						conditions.add(parseCondition(innerCondition.toString(), connector));
+					}
+				} else {
+					conditions.add(parseCondition(condition.toString(), Operator.AND));
+				}
+			}
+		} else {
+			conditions.add(parseCondition(where.toString(), Operator.AND));
+		}
+		return conditions;
+	}
+
+	private Condition parseCondition(String conditionString, Operator connector) {
+		String table = null;
+		String alias = null;
+		Operator operator = parseOperatorNew(conditionString);
+		String[] kv;
+		/*
+		 * 对in和between做特殊处理
+		 */
+		switch (operator) {
+		case IN:
+		case BETWEEN:
+			kv = conditionString.split(EQUAL.op());
+			break;
+		case NOT_IN:
+			kv = conditionString.split(NOT_EQUAL.op());
+			break;
+
+		default:
+			kv = conditionString.split(operator.op());
+			break;
+		}
+		String column = kv[0];
+		Object value = kv[1];
+		/*
+		 * 判断列所属的表
+		 * 1. column1=1 // 主表的列
+		 * 2. table1.column1=1 // 指定表的列
+		 */
+		if (column.indexOf(".") != -1) {
+			String[] tableColumn = column.split("\\.");
+			String specifiedTable = tableColumn[0];
+			if (specifiedTable.equals(this.table)) { // 主表的列
+				table = this.table;
+				alias = this.alias;
+			} else { // 指定表的列
+				table = specifiedTable;
+				alias = aliases.get(specifiedTable);
+			}
+		} else {
+			table = this.table;
+			alias = this.alias;
+		}
+		return new Condition(db, table, alias, connector, operator, column, value);
+	}
+
+	/**
+	 * 解析条件运算符
+	 * 
+	 * @param condition
+	 * @return
+	 */
+	private Operator parseOperatorNew(String conditionString) {
+		if (conditionString.indexOf(LIKE.op()) > 0) { // like
+			return LIKE;
+		} else if (conditionString.indexOf(LTE.op()) > 0) {// 小于等于
+			return LTE;
+		} else if (conditionString.indexOf(GTE.op()) > 0) { // 大于等于
+			return GTE;
+		} else if (conditionString.indexOf(LT.op()) > 0) { // 小于
+			return LT;
+		} else if (conditionString.indexOf(GT.op()) > 0) { // 大于
+			return GT;
+		} else if (conditionString.indexOf(NOT_EQUAL.op()) > 0) {
+			String[] kv = conditionString.split(NOT_EQUAL.op());
+			//			String column = kv[0];
+			Object value = kv[1];
+			if (value.toString().indexOf(",") != -1) { // not in
+				return NOT_IN;
+			} else { // 不等于
+				return NOT_EQUAL;
+			}
+		} else if (conditionString.indexOf(EQUAL.op()) > 0) {
+			String[] kv = conditionString.split(EQUAL.op());
+			//			String column = kv[0];
+			Object value = kv[1];
+			if (value.toString().indexOf(",") != -1) { // in
+				return IN;
+			} else if (value.toString().indexOf("~") != -1) { // between
+				return BETWEEN;
+			} else { // 等于
+				return EQUAL;
 			}
 		}
 		return null;
@@ -471,7 +603,7 @@ public class Engine {
 		if (field.indexOf(".") == -1) {
 			JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
 			if (tableColumnConfig.containsKey(field)) {
-				field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+				field = DEFAULT_ALIAS + "." + field;
 			} else {
 				if (joins != null) {
 					for (Join join : joins) {
@@ -489,7 +621,7 @@ public class Engine {
 			String whereTable = whereTableField[0];
 			String whereField = whereTableField[1];
 			if (whereTable.equals(table)) {
-				field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+				field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
 			} else {
 				if (joins != null) {
 					for (Join join : joins) {
@@ -615,7 +747,7 @@ public class Engine {
 			if (field.indexOf(".") == -1) {
 				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
 				if (tableColumnConfig.containsKey(field)) {
-					field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+					field = DEFAULT_ALIAS + "." + field;
 				} else {
 					if (joins != null) {
 						for (Join join : joins) {
@@ -633,7 +765,7 @@ public class Engine {
 				String whereTable = whereTableField[0];
 				String whereField = whereTableField[1];
 				if (whereTable.equals(table)) {
-					field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+					field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
 				} else {
 					if (joins != null) {
 						for (Join join : joins) {
@@ -680,7 +812,7 @@ public class Engine {
 			if (realField.indexOf(".") == -1) {
 				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
 				if (tableColumnConfig.containsKey(realField)) {
-					field = SQLBuilder.DEFAULT_ALIAS + "." + field;
+					field = DEFAULT_ALIAS + "." + field;
 				} else {
 					if (joins != null) {
 						for (Join join : joins) {
@@ -698,7 +830,7 @@ public class Engine {
 				String whereTable = whereTableField[0];
 				String whereField = whereTableField[1];
 				if (whereTable.equals(table)) {
-					field = (alias == null ? SQLBuilder.DEFAULT_ALIAS : alias) + "." + whereField;
+					field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
 				} else {
 					if (joins != null) {
 						for (Join join : joins) {

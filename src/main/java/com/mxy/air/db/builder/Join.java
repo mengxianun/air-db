@@ -1,6 +1,5 @@
 package com.mxy.air.db.builder;
 
-import com.mxy.air.db.SQLBuilder;
 import com.mxy.air.db.Structure.JoinType;
 
 public class Join {
@@ -32,7 +31,7 @@ public class Join {
 	public Join(String table, String alias, String column, String targetTable, String targetAlias, String targetColumn,
 			JoinType joinType) {
 		this.table = table;
-		this.alias = alias == null ? SQLBuilder.DEFAULT_ALIAS : alias;
+		this.alias = alias;
 		this.column = column;
 		this.targetTable = targetTable;
 		this.targetAlias = targetAlias == null ? "j_" + targetTable : targetAlias;

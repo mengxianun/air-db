@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.google.common.base.Strings;
 import com.mxy.air.db.AirContext;
 import com.mxy.air.db.DbException;
 import com.mxy.air.db.SQLBuilder;
@@ -17,17 +18,16 @@ public class Update extends SQLBuilder {
 		statementType = StatementType.UPDATE;
 	}
 
-	public Update(String table, String alias, Map<String, Object> values, String where, List<Object> params) {
+	public Update(String table, String alias, Map<String, Object> values, List<Condition> conditions) {
 		this();
 		this.table = table;
 		this.alias = alias;
 		this.values = values;
-		this.where = where;
-		this.params.addAll(params);
-		this.whereParams.addAll(params);
+		this.conditions = conditions;
 	}
     
-	public Update build() {
+	public Update toBuild() {
+		String aliasPrefix = Strings.isNullOrEmpty(alias) ? "" : alias + ".";
 		if (db == null)
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
@@ -39,8 +39,6 @@ public class Update extends SQLBuilder {
 		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
 		StringBuilder builder = new StringBuilder();
 		builder.append("update ").append(table).append(" ").append(alias).append(" set ");
-		StringBuilder columnBuilder = new StringBuilder();
-		List<Object> updateParams = new ArrayList<>();
 		boolean comma = false;
 		for (Entry<String, Object> entry : values.entrySet()) {
 			String column = entry.getKey();
@@ -50,22 +48,27 @@ public class Update extends SQLBuilder {
 				continue;
 			}
 			if (comma) {
-				columnBuilder.append(", ");
+				builder.append(", ");
 			}
-			columnBuilder.append(alias).append(".").append(column).append(" = ").append("?");
+			builder.append(aliasPrefix).append(column).append(" = ").append("?");
 			// 关键字处理
-			updateParams.add(value);
+			params.add(value);
 			comma = true;
 		}
-		builder.append(columnBuilder);
-		// 将列参数排在where参数前面
-		params = new ArrayList<>(updateParams);
-		params.addAll(whereParams);
-		if (!isEmpty(where)) {
-			builder.append(" where ").append(where);
-		}
+		// Where
+		builder.append(buildWhere());
 		sql = builder.toString();
 		return this;
     }
+
+	public List<Object> whereParams() {
+		List<Object> whereParams = new ArrayList<>();
+		for (Object value : values.values()) {
+			if (!params.contains(value)) {
+				whereParams.add(value);
+			}
+		}
+		return whereParams;
+	}
 
 }

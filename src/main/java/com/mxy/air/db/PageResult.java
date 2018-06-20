@@ -1,8 +1,6 @@
 package com.mxy.air.db;
 
-import java.util.List;
-import java.util.Map;
-
+import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
 /**
@@ -26,9 +24,9 @@ public class PageResult {
 	public PageResult() {
 	}
 	
-	public static JSONObject wrap(long start, long end, long total, List<Map<String, Object>> list) {
+	public static JSONObject wrap(long start, long end, long total, JSONArray data) {
 		return new JSONObject().put(ATTRIBUTE.START, start).put(ATTRIBUTE.END, end).put(ATTRIBUTE.TOTAL, total)
-				.put(ATTRIBUTE.DATA, list);
+				.put(ATTRIBUTE.DATA, data);
 	}
 
 }

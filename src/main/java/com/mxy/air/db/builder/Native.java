@@ -11,7 +11,7 @@ public class Native extends SQLBuilder {
 		this.sql = sql;
 	}
 
-	public Native build() {
+	public Native toBuild() {
 		// nothing to do
 		return this;
 	}

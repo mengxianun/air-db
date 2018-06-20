@@ -1,6 +1,7 @@
 package com.mxy.air.db.builder;
 
 import com.mxy.air.db.Structure.JoinType;
+import com.mxy.air.db.config.TableConfig.Association;
 
 public class Join {
 
@@ -22,14 +23,16 @@ public class Join {
 	// 关联字段
 	private String targetColumn;
 
-	// 关联类型
+	// Join类型
 	private JoinType joinType;
 
-	public Join() {
-	}
+	// 表关联类型
+	private Association.Type associationType;
+
+	public Join() {}
 
 	public Join(String table, String alias, String column, String targetTable, String targetAlias, String targetColumn,
-			JoinType joinType) {
+			JoinType joinType, Association.Type associationType) {
 		this.table = table;
 		this.alias = alias;
 		this.column = column;
@@ -37,6 +40,7 @@ public class Join {
 		this.targetAlias = targetAlias == null ? "j_" + targetTable : targetAlias;
 		this.targetColumn = targetColumn;
 		this.joinType = joinType;
+		this.associationType = associationType;
 	}
 
 
@@ -101,6 +105,14 @@ public class Join {
 
 	public void setJoinType(JoinType joinType) {
 		this.joinType = joinType;
+	}
+
+	public Association.Type getAssociationType() {
+		return associationType;
+	}
+
+	public void setAssociationType(Association.Type associationType) {
+		this.associationType = associationType;
 	}
 
 }

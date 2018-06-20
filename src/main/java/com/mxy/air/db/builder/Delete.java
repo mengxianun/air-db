@@ -11,24 +11,21 @@ public class Delete extends SQLBuilder {
 		statementType = StatementType.DELETE;
 	}
 
-	public Delete(String table, String alias, String where, List<Object> params) {
+	public Delete(String table, String alias, List<Condition> conditions) {
 		this();
 		this.table = table;
 		this.alias = alias;
-		this.where = where;
-		this.params.addAll(params);
-		this.whereParams.addAll(params);
+		this.conditions = conditions;
 	}
     
-	public Delete build() {
+	public Delete toBuild() {
 		if (db == null)
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
 		StringBuilder builder = new StringBuilder();
 		builder.append("delete ").append(alias).append(" from ").append(table).append(" ").append(alias);
-		if (!isEmpty(where)) {
-			builder.append(" where ").append(where);
-		}
+		// Where
+		builder.append(buildWhere());
 		sql = builder.toString();
 		return this;
     }

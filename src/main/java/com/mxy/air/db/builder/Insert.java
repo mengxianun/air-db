@@ -21,7 +21,7 @@ public class Insert extends SQLBuilder {
 		this.values = values;
 	}
     
-	public Insert build() {
+	public Insert toBuild() {
 		if (db == null)
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);

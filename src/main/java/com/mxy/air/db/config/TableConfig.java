@@ -66,7 +66,37 @@ public enum TableConfig {
 		/*
 		 * 关联表的列
 		 */
-		TARGET_COLUMN
+		TARGET_COLUMN,
+
+		/*
+		 * 关联类型, 一对一, 一对多, 多对一, 多对多
+		 */
+		TYPE;
+
+		public enum Type {
+			ONE_TO_ONE("one_to_one"), ONE_TO_MANY("one_to_many"), MANY_TO_ONE("many_to_one"), MANY_TO_MANY(
+					"many_to_many");
+
+			private String text;
+
+			private Type(String text) {
+				this.text = text;
+			}
+
+			public String text() {
+				return text;
+			}
+
+			public static Type from(String text) {
+				for (Type type : values()) {
+					if (type.text().equalsIgnoreCase(text)) {
+						return type;
+					}
+				}
+				return null;
+			}
+
+		}
 	}
 
 	public enum Keyword {

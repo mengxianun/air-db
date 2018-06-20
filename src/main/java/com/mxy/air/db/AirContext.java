@@ -1,5 +1,7 @@
 package com.mxy.air.db;
 
+import java.util.Map.Entry;
+
 import javax.sql.DataSource;
 
 import com.google.common.base.Strings;
@@ -71,6 +73,87 @@ public class AirContext {
 			return null;
 		}
 		return tableColumnConfigs.getObject(column).getString(Column.TYPE);
+	}
+
+	/**
+	 * 获得2个表的关联关系, 默认为当前数据源下的表
+	 * @param tableA 第一个表
+	 * @param tableB 第二个表
+	 * @return
+	 */
+	public static TableConfig.Association.Type getAssociation(String tableA, String tableB) {
+		return getAssociation(getCurrentDb(), tableA, tableB);
+	}
+
+	/**
+	 * 获得2个表的关联关系
+	 * @param db 数据源名称
+	 * @param tableA 第一个表
+	 * @param tableB 第二个表
+	 * @return
+	 */
+	public static TableConfig.Association.Type getAssociation(String db, String tableA, String tableB) {
+		JSONObject tableAConfig = AirContext.getTableConfig(db, tableA);
+		JSONObject tableAColumnsConfig = tableAConfig.getObject(TableConfig.COLUMNS);
+		/*
+		 * 1. 查看第一个表配置文件中是否配置了第二个表的关联, 循环第一个表的每个列, 找到配置了第二个表关联关系的配置
+		 */
+		for (Entry<String, Object> columnConfigObject : tableAColumnsConfig.entrySet()) {
+			JSONObject columnConfig = (JSONObject) columnConfigObject.getValue();
+			if (columnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+				JSONObject association = columnConfig.getObject(TableConfig.Column.ASSOCIATION);
+				String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
+				// 如果第一个表的该字段配置的关联表不是第二个表, 跳过
+				if (!tableB.equals(targetTable)) {
+					continue;
+				}
+				TableConfig.Association.Type associationType;
+				String type = association.getString(TableConfig.Association.TYPE);
+				if (type == null) {
+					associationType = TableConfig.Association.Type.ONE_TO_ONE;
+				} else {
+					associationType = TableConfig.Association.Type.from(type);
+				}
+				return associationType;
+			}
+		}
+		// 2. 查看第二个表表的配置文件中是否配置了第一个表的关联, 循环第二个表的每个列, 找到配置了第一个表关联关系的配置
+		JSONObject tableBConfig = AirContext.getTableConfig(db, tableB);
+		JSONObject tableBColumnsConfig = tableBConfig.getObject(TableConfig.COLUMNS);
+		for (Entry<String, Object> joinColumnConfigObject : tableBColumnsConfig.entrySet()) {
+			JSONObject joinTableColumnConfig = (JSONObject) joinColumnConfigObject.getValue();
+			if (joinTableColumnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+				JSONObject association = joinTableColumnConfig.getObject(TableConfig.Column.ASSOCIATION);
+				String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
+				// 如果第二个表的该字段配置的关联表不是第一个表, 跳过
+				if (!tableA.equals(targetTable)) {
+					continue;
+				}
+				TableConfig.Association.Type associationType;
+				String type = association.getString(TableConfig.Association.TYPE);
+				if (type == null) {
+					associationType = TableConfig.Association.Type.ONE_TO_ONE;
+				} else {
+					associationType = TableConfig.Association.Type.from(type);
+				}
+				/*
+				 * 第二个表对第一个表的一对多反过来就是第一个表对第二个表的多对一
+				 */
+				switch (associationType) {
+				case ONE_TO_MANY:
+					associationType = TableConfig.Association.Type.MANY_TO_ONE;
+					break;
+				case MANY_TO_ONE:
+					associationType = TableConfig.Association.Type.ONE_TO_MANY;
+					break;
+
+				default:
+					break;
+				}
+				return associationType;
+			}
+		}
+		return null;
 	}
 
 	public static String getDefaultDb() {

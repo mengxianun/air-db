@@ -8,6 +8,7 @@ import com.google.inject.Inject;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Select;
+import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.jdbc.trans.Atom;
@@ -31,8 +32,6 @@ public class SQLHandler {
 	public Object handle(Engine engine) throws SQLException {
 		Type type = engine.getType();
 		SQLBuilder builder = engine.getBuilder();
-		// 检查
-		AirContext.check(builder.db(), builder.table());
 		// 构建SQL语句
 		builder.build();
 		switch (type) {
@@ -80,21 +79,19 @@ public class SQLHandler {
 	 */
 	public Object query(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
-		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
-		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		List<Map<String, Object>> list = sqlSession.list(builder.sql(), builder.params().toArray());
 		// 结果渲染
-		renderer.render(list, columnsConfig);
+		JSONArray data = renderer.render(list, builder);
 		// 分页查询, 查询总记录数
 		if (builder.limit() != null) {
 			String countSql = ((Select) builder).getCountSql();
-			Object[] countParams = ((Select) builder).whereParams().toArray();
+			Object[] countParams = ((Select) builder).getWhereParams().toArray();
 			long total = sqlSession.count(countSql, countParams);
 			long[] limit = builder.limit();
-			JSONObject result = PageResult.wrap(limit[0], limit[1], total, list);
+			JSONObject result = PageResult.wrap(limit[0], limit[1], total, data);
 			return result;
 		} else {
-			return new JSONArray(list);
+			return data;
 		}
 	}
 
@@ -141,7 +138,7 @@ public class SQLHandler {
 		if (AirContext.getConfig().getBoolean(DatacolorConfig.UPSERT)) { // 如果不存在就新增记录
 			// 查询数据库是否存在
 			Select select = SQLBuilder.select(builder.table());
-			select.where(builder.where()).params(builder.whereParams());
+			select.where(builder.where()).params(((Update) builder).whereParams());
 			select.build();
 			Map<String, Object> detail = sqlSession.detail(select.sql(), select.params().toArray());
 			if (detail == null) {
@@ -155,9 +152,7 @@ public class SQLHandler {
 		// 重新构建SQLBuilder, 生成新的SQL语句和参数
 		builder.build();
 		int updateCount = sqlSession.update(builder.sql(), builder.params().toArray());
-		JSONArray result = new JSONArray();
-		result.add(updateCount);
-		return result;
+		return new JSONObject("count", updateCount);
 	}
 
 	/**
@@ -171,7 +166,7 @@ public class SQLHandler {
 	public Object delete(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
-		return new JSONArray().add(deleteCount);
+		return new JSONObject("count", deleteCount);
 	}
 
 	/**

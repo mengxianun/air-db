@@ -8,7 +8,6 @@ import static com.mxy.air.db.Structure.NATIVE;
 import static com.mxy.air.db.Structure.ORDER;
 import static com.mxy.air.db.Structure.VALUES;
 import static com.mxy.air.db.Structure.WHERE;
-import static com.mxy.air.db.Structure.Operator.AND;
 import static com.mxy.air.db.Structure.Operator.BETWEEN;
 import static com.mxy.air.db.Structure.Operator.EQUAL;
 import static com.mxy.air.db.Structure.Operator.GT;
@@ -17,7 +16,6 @@ import static com.mxy.air.db.Structure.Operator.IN;
 import static com.mxy.air.db.Structure.Operator.LIKE;
 import static com.mxy.air.db.Structure.Operator.LT;
 import static com.mxy.air.db.Structure.Operator.LTE;
-import static com.mxy.air.db.Structure.Operator.NOT;
 import static com.mxy.air.db.Structure.Operator.NOT_EQUAL;
 import static com.mxy.air.db.Structure.Operator.NOT_IN;
 import static com.mxy.air.db.Structure.Order.MINUS;
@@ -30,7 +28,6 @@ import static com.mxy.air.db.Structure.Type.SELECT;
 import static com.mxy.air.db.Structure.Type.TRANSACTION;
 import static com.mxy.air.db.Structure.Type.UPDATE;
 
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,9 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
-import com.google.common.base.Strings;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
@@ -49,6 +44,7 @@ import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Native;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
+import com.mxy.air.db.config.TableConfig.Association;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -76,14 +72,7 @@ public class Engine {
 	
 	private String alias;
 
-	/*
-	 * 所有操作的表, 包括主表和join的表
-	 */
-	List<String> tables = new ArrayList<>();
-
 	private List<Join> joins = new ArrayList<>();
-
-	private List<Condition> conditions;
 
 	// 表别名, key为表名, value为表别名
 	private Map<String, String> aliases = new HashMap<>();
@@ -126,9 +115,7 @@ public class Engine {
 		if (!AirContext.isElasticsearch(db)) {
 			alias = DEFAULT_ALIAS;
 		}
-		if (!Strings.isNullOrEmpty(alias)) {
-			aliases.put(table, alias);
-		}
+		aliases.put(table, alias);
 		switch (type) {
 		case DETAIL:
 		case QUERY:
@@ -148,10 +135,8 @@ public class Engine {
 		default:
 			break;
 		}
-		/*
-		 * 临时添加Conditions
-		 */
-		//		builder.conditions(conditions);
+		// 检查
+		aliases.keySet().forEach(t -> AirContext.check(db, t));
 		builder.db(db);
 		//		builder.build();
 		return this;
@@ -204,13 +189,8 @@ public class Engine {
 		joins = parseJoin(object.get(JOIN));
 		// 字段, 默认查询所有
 		String[] fields = object.containsKey(FIELDS) ? object.getArray(FIELDS).toStringArray() : null;
-		// SQL参数
-		List<Object> params = new ArrayList<>();
 		// where
-		//		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
-		//		String where = whereEntry.getKey();
-		//		params.addAll(whereEntry.getValue());
-		conditions = parseWhereNew(object.get(WHERE));
+		List<Condition> conditions = parseWhere(object.get(WHERE));
 		// group
 		String[] groups = parseGroup(object.get(GROUP));
 		// order
@@ -221,7 +201,7 @@ public class Engine {
 			Object[] limitArray = object.getArray(LIMIT).array();
 			limit = Arrays.stream(limitArray).mapToLong(i -> Long.parseLong(i.toString())).toArray();
 		}
-		return SQLBuilder.select(table, alias, joins, fields, null, params, conditions, groups, orders, limit);
+		return SQLBuilder.select(table, alias, joins, fields, conditions, groups, orders, limit);
 	}
 
 	/**
@@ -246,15 +226,11 @@ public class Engine {
 	 * @return
 	 */
 	private SQLBuilder update(JSONObject object) {
-		// SQL参数
-		List<Object> params = new ArrayList<>();
 		// 插入或更新的值
 		Map<String, Object> values = object.containsKey(VALUES) ? object.getObject(VALUES).map() : null;
 		// where
-		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
-		String where = whereEntry.getKey();
-		params.addAll(whereEntry.getValue());
-		return SQLBuilder.update(table, alias, values, where, params);
+		List<Condition> conditions = parseWhere(object.get(WHERE));
+		return SQLBuilder.update(table, alias, values, conditions);
 	}
 
 	/**
@@ -265,13 +241,9 @@ public class Engine {
 	 * @return
 	 */
 	private SQLBuilder delete(JSONObject object) {
-		// SQL参数
-		List<Object> params = new ArrayList<>();
 		// where
-		SimpleImmutableEntry<String, List<Object>> whereEntry = parseWhere(object.get(WHERE));
-		String where = whereEntry.getKey();
-		params.addAll(whereEntry.getValue());
-		return SQLBuilder.delete(table, alias, where, params);
+		List<Condition> conditions = parseWhere(object.get(WHERE));
+		return SQLBuilder.delete(table, alias, conditions);
 	}
 
 	/**
@@ -294,22 +266,23 @@ public class Engine {
 			return null;
 		}
 		/*
-		 * 获取所有操作的表
+		 * 先解析出所有操作的表
 		 */
-		tables.add(table);
 		if (join instanceof JSONArray) { // join多个表
 			JSONArray joinArray = (JSONArray) join;
 			for (Object joinObject : joinArray.list()) {
 				if (joinObject instanceof JSONObject) {
-					tables.add(((JSONObject) joinObject).entrySet().iterator().next().getValue().toString());
+					String joinTable = ((JSONObject) joinObject).entrySet().iterator().next().getValue().toString();
+					aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
 				} else {
-					tables.add(joinObject.toString());
+					aliases.put(joinObject.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinObject.toString());
 				}
 			}
 		} else if (join instanceof JSONObject) {
-			tables.add(((JSONObject) join).entrySet().iterator().next().getValue().toString());
+			String joinTable = ((JSONObject) join).entrySet().iterator().next().getValue().toString();
+			aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
 		} else {
-			tables.add(join.toString());
+			aliases.put(join.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + join.toString());
 		}
 
 		if (join instanceof JSONArray) { // join多个表
@@ -370,6 +343,7 @@ public class Engine {
 		/*
 		 * 该join的表是否与主表关联, 循环主表的每个列, 找到配置了主表关联关系的配置
 		 */
+		// 1. 查看主表配置文件中是否配置了关联
 		for (Entry<String, Object> columnConfigObject : columnsConfig.entrySet()) {
 			String column = columnConfigObject.getKey();
 			JSONObject columnConfig = (JSONObject) columnConfigObject.getValue();
@@ -382,14 +356,61 @@ public class Engine {
 				}
 				// 主表的关联字段为join表中配置的target_column
 				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
-				return new Join(table, alias, column, joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable,
-						targetColumn, joinType);
+				Association.Type associationType;
+				String type = association.getString(TableConfig.Association.TYPE);
+				if (type == null) {
+					associationType = Association.Type.ONE_TO_ONE;
+				} else {
+					associationType = Association.Type.from(type);
+				}
+				return new Join(table, alias, column, joinTable, aliases.get(joinTable),
+						targetColumn, joinType, associationType);
+			}
+		}
+		// 2. 查看join表的配置文件中时候配置了关联
+		JSONObject joinTableConfig = AirContext.getTableConfig(db, joinTable);
+		JSONObject joinColumnsConfig = joinTableConfig.getObject(TableConfig.COLUMNS);
+		for (Entry<String, Object> joinColumnConfigObject : joinColumnsConfig.entrySet()) {
+			String joinTableColumn = joinColumnConfigObject.getKey();
+			JSONObject joinTableColumnConfig = (JSONObject) joinColumnConfigObject.getValue();
+			if (joinTableColumnConfig.containsKey(TableConfig.Column.ASSOCIATION)) {
+				JSONObject association = joinTableColumnConfig.getObject(TableConfig.Column.ASSOCIATION);
+				String targetTable = association.getString(TableConfig.Association.TARGET_TABLE);
+				// 如果join表的该字段配置的关联表不是主表
+				if (!table.equals(targetTable)) {
+					continue;
+				}
+				// join表配置的target_column为主表的字段
+				String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
+				Association.Type associationType;
+				String type = association.getString(TableConfig.Association.TYPE);
+				if (type == null) {
+					associationType = Association.Type.ONE_TO_ONE;
+				} else {
+					associationType = Association.Type.from(type);
+				}
+				/*
+				 * join表对主表的一对多反过来就是主表对join表的多对一
+				 */
+				switch (associationType) {
+				case ONE_TO_MANY:
+					associationType = Association.Type.MANY_TO_ONE;
+					break;
+				case MANY_TO_ONE:
+					associationType = Association.Type.ONE_TO_MANY;
+					break;
+
+				default:
+					break;
+				}
+				return new Join(table, alias, targetColumn, joinTable, aliases.get(joinTable), joinTableColumn,
+						joinType, associationType);
 			}
 		}
 		/*
-		 * 改join的表与其他join的表关联, 比如 A join B, B join C
+		 * 该join的表与其他join的表关联, 比如 A join B, B join C
 		 */
-		for (String tab : tables) {
+		for (String tab : aliases.keySet()) {
 			/*
 			 * 跳过主表和join表自己, 
 			 */
@@ -408,16 +429,22 @@ public class Engine {
 						continue;
 					}
 					String targetColumn = association.getString(TableConfig.Association.TARGET_COLUMN);
-					return new Join(tab, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + tab, otherJoinColumn, joinTable,
-							DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable, targetColumn,
-							joinType);
+					Association.Type associationType;
+					String type = association.getString(TableConfig.Association.TYPE);
+					if (type == null) {
+						associationType = Association.Type.ONE_TO_ONE;
+					} else {
+						associationType = Association.Type.from(type);
+					}
+					return new Join(tab, aliases.get(tab), otherJoinColumn, joinTable, aliases.get(joinTable),
+							targetColumn, joinType, associationType);
 				}
 			}
 		}
 		return null;
 	}
 
-	private List<Condition> parseWhereNew(Object where) {
+	private List<Condition> parseWhere(Object where) {
 		if (where == null) {
 			return Collections.emptyList();
 		}
@@ -426,7 +453,7 @@ public class Engine {
 			Object[] whereArray = ((JSONArray) where).array();
 			for (Object condition : whereArray) {
 				if (condition instanceof JSONArray) {
-					conditions.add(new Condition(null, null, null, Operator.AND, null, null, parseWhereNew(condition)));
+					conditions.add(new Condition(null, null, null, Operator.AND, null, null, parseWhere(condition)));
 				} else if (condition instanceof JSONObject) {
 					Entry<String, Object> entry = ((JSONObject) condition).entrySet().iterator().next();
 					Operator connector = Operator.from(entry.getKey());
@@ -434,7 +461,7 @@ public class Engine {
 
 					if (innerCondition instanceof JSONArray) {
 						conditions.add(
-								new Condition(null, null, null, connector, null, null, parseWhereNew(innerCondition)));
+								new Condition(null, null, null, connector, null, null, parseWhere(innerCondition)));
 					} else {
 						conditions.add(parseCondition(innerCondition.toString(), connector));
 					}
@@ -451,7 +478,7 @@ public class Engine {
 	private Condition parseCondition(String conditionString, Operator connector) {
 		String table = null;
 		String alias = null;
-		Operator operator = parseOperatorNew(conditionString);
+		Operator operator = parseOperator(conditionString);
 		String[] kv;
 		/*
 		 * 对in和between做特殊处理
@@ -479,6 +506,7 @@ public class Engine {
 		if (column.indexOf(".") != -1) {
 			String[] tableColumn = column.split("\\.");
 			String specifiedTable = tableColumn[0];
+			column = tableColumn[1];
 			if (specifiedTable.equals(this.table)) { // 主表的列
 				table = this.table;
 				alias = this.alias;
@@ -499,7 +527,7 @@ public class Engine {
 	 * @param condition
 	 * @return
 	 */
-	private Operator parseOperatorNew(String conditionString) {
+	private Operator parseOperator(String conditionString) {
 		if (conditionString.indexOf(LIKE.op()) > 0) { // like
 			return LIKE;
 		} else if (conditionString.indexOf(LTE.op()) > 0) {// 小于等于
@@ -532,194 +560,6 @@ public class Engine {
 			}
 		}
 		return null;
-	}
-
-	/**
-	 * 解析where
-	 * 
-	 * @param where
-	 * @return
-	 */
-	private SimpleImmutableEntry<String, List<Object>> parseWhere(Object where) {
-		if (where == null) {
-			return new SimpleImmutableEntry<String, List<Object>>(null, Collections.emptyList());
-		}
-		if (where instanceof JSONArray) { // 多个条件
-			StringBuilder builder = new StringBuilder();
-			List<Object> params = new ArrayList<>();
-			Object[] whereArray = ((JSONArray) where).array();
-			// 是否使用连接符
-			boolean connect = false;
-			for (Object element : whereArray) {
-				// 默认条件连接符为and
-				String connector = AND.op();
-				Object condition = element;
-				if (element instanceof JSONObject) { // 指定连接符的情况, 提取连接符和条件
-					Entry<String, Object> entry = ((JSONObject) element).entrySet().iterator().next();
-					connector = entry.getKey();
-					condition = entry.getValue();
-				}
-				if (connect) { // 第一个条件不添加连接符, 其他都添加
-					builder.append(' ').append(connector).append(' ');
-				}
-				if (condition instanceof JSONArray) { // 数组类型条件, 相当于另一个嵌入的where条件, 所以这里做递归处理, 并且用括号包裹
-					SimpleImmutableEntry<String, List<Object>> innerWhere = parseWhere(condition);
-					builder.append('(').append(innerWhere.getKey()).append(')');
-					params.addAll(innerWhere.getValue());
-				} else { // 字符串类型条件
-					SimpleImmutableEntry<String, List<Object>> innerCondition = parseWhere(condition);
-
-					builder.append(innerCondition.getKey());
-					params.addAll(innerCondition.getValue());
-				}
-				connect = true;
-			}
-			return new SimpleImmutableEntry<String, List<Object>>(builder.toString(), params);
-		} else { // 字符串类型, 单个条件
-			return parseCondition(where.toString());
-		}
-	}
-
-	/**
-	 * 解析具体条件. =, !=, >, >=, <, <=, ,, ~, =~
-	 * 
-	 * @param condition
-	 *            条件
-	 * @return
-	 */
-	private SimpleImmutableEntry<String, List<Object>> parseCondition(String condition) {
-		if (condition == null || condition.isEmpty()) {
-			return new SimpleImmutableEntry<String, List<Object>>(null, Collections.emptyList());
-		}
-		String sql;
-		List<Object> params = new ArrayList<>();
-		Operator op = parseOperator(condition);
-		String[] kv = condition.split(op.op());
-		String field = kv[0];
-		/*
-		 * 如果where条件字段没有指定表别名, 添加表别名
-		 * ***********临时方法, 待优化***********
-		 */
-		if (field.indexOf(".") == -1) {
-			JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
-			if (tableColumnConfig.containsKey(field)) {
-				field = DEFAULT_ALIAS + "." + field;
-			} else {
-				if (joins != null) {
-					for (Join join : joins) {
-						JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
-								join.getTargetTable());
-						if (joinTableColumnConfig.containsKey(field)) {
-							field = join.getTargetAlias() + "." + field;
-							break;
-						}
-					}
-				}
-			}
-		} else {
-			String[] whereTableField = field.split("\\.");
-			String whereTable = whereTableField[0];
-			String whereField = whereTableField[1];
-			if (whereTable.equals(table)) {
-				field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
-			} else {
-				if (joins != null) {
-					for (Join join : joins) {
-						if (whereTable.equals(join.getTargetTable())) {
-							field = join.getTargetAlias() + "." + whereField;
-							break;
-						}
-					}
-				}
-			}
-		}
-		String value = kv[1];
-		if (op == EQUAL || op == NOT_EQUAL) { // 等于的情况包括: 直接相等, between(~分割的范围值), in(,分割的多值)
-			if (value.indexOf(BETWEEN.op()) > 0) { // between
-				String[] values = value.split(BETWEEN.op());
-				params.add(processValue(values[0]));
-				params.add(processValue(values[1]));
-				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + BETWEEN.sql() + " ? and ?";
-				//
-				//				conditions.add(
-				//						new Condition(op, field, new Object[] { processValue(values[0]), processValue(values[1]) }));
-			} else if (value.indexOf(IN.op()) > 0) { // in
-				List<Object> inParams = Arrays.stream(value.split(IN.op())).map(v -> processValue(v))
-						.collect(Collectors.toList());
-				params.addAll(inParams);
-				// 将所有元素替换为?占位符 a,b,c -> ?,?,?
-				value = value.replaceAll("((?!,).)*", "?").replaceAll("(\\?)+", "?");
-				sql = field + " " + (op == NOT_EQUAL ? NOT.sql() + " " : "") + IN.sql() + " (" + value + ")";
-				//
-				//				conditions.add(new Condition(op, field, inParams));
-			} else {
-				Object processValue = processValue(value);
-				params.add(processValue);
-				sql = field + " " + op.sql() + " ?";
-				//
-				//				conditions.add(new Condition(op, field, processValue));
-			}
-		} else {
-			Object processValue = processValue(value);
-			params.add(processValue);
-			sql = field + " " + op.sql() + " ?";
-			//
-			//			conditions.add(new Condition(op, field, processValue));
-		}
-		return new SimpleImmutableEntry<String, List<Object>>(sql, params);
-	}
-
-	/**
-	 * 解析条件运算符
-	 * 
-	 * @param condition
-	 * @return
-	 */
-	private Operator parseOperator(String condition) {
-		if (condition.indexOf(LIKE.op()) > 0) { // like
-			return LIKE;
-		} else if (condition.indexOf(LTE.op()) > 0) {// 小于等于
-			return LTE;
-		} else if (condition.indexOf(GTE.op()) > 0) { // 大于等于
-			return GTE;
-		} else if (condition.indexOf(LT.op()) > 0) { // 小于
-			return LT;
-		} else if (condition.indexOf(GT.op()) > 0) { // 大于
-			return GT;
-		} else if (condition.indexOf(NOT_EQUAL.op()) > 0) { // 不等于
-			return NOT_EQUAL;
-		} else if (condition.indexOf(EQUAL.op()) > 0) { // 等于
-			return EQUAL;
-		}
-		return null;
-	}
-
-	/**
-	 * 处理过滤条件中的值, 将值转换为具体类型.原始值类型为String
-	 * 整数类型转换为int或long
-	 * 小数类型转换为double
-	 * 单引号包裹的去掉单引号, 返回String类型
-	 * 其他情况返回原始值
-	 * 
-	 * @param value
-	 * @return
-	 */
-	private Object processValue(String value) {
-		char initial = value.charAt(0);
-		if ((initial >= '0' && initial <= '9') || initial == '-' || initial == '+') { // 数值类型
-			if (value.contains(".") || value.contains("e") || value.contains("E") || value.contains("-0")) { // 小数
-				return Double.valueOf(value);
-			} else {
-				long l = Long.valueOf(value);
-				if (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
-					return (int) l;
-				}
-				return l;
-			}
-		} else if (value.startsWith("'") && value.endsWith("'")) { // 字符串类型
-			return value.substring(1, value.length() - 1);
-		}
-		return value;
 	}
 
 	/**

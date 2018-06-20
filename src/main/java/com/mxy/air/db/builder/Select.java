@@ -10,7 +10,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.mxy.air.db.AirContext;
 import com.mxy.air.db.SQLBuilder;
-import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.jdbc.Page;
 import com.mxy.air.json.JSONObject;
@@ -18,6 +17,8 @@ import com.mxy.air.json.JSONObject;
 public class Select extends SQLBuilder {
 
 	private String countSql;
+
+	private List<Object> whereParams = new ArrayList<>();
 
 	public Select() {
 		statementType = StatementType.SELECT;
@@ -29,25 +30,20 @@ public class Select extends SQLBuilder {
 		this.alias = "t";
 	}
 
-	public Select(String table, String alias, List<Join> joins, String[] columns, String where, List<Object> params,
-			List<Condition> conditions,
-			String[] groups, String[] orders,
-			long[] limit) {
+	public Select(String table, String alias, List<Join> joins, String[] columns, List<Condition> conditions,
+			String[] groups, String[] orders, long[] limit) {
 		this();
 		this.table = table;
 		this.alias = alias;
 		this.joins = joins;
 		this.columns = columns;
-		this.where = where;
-		this.params.addAll(params);
-		this.whereParams.addAll(params);
 		this.conditions = conditions;
 		this.groups = groups;
 		this.orders = orders;
 		this.limit = limit;
 	}
 
-	public Select build() {
+	public Select toBuild() {
 		String aliasPrefix = Strings.isNullOrEmpty(alias) ? "" : alias + ".";
 		if (db == null)
 			db = AirContext.getDefaultDb();
@@ -81,13 +77,20 @@ public class Select extends SQLBuilder {
 							.append(" ").append(join.getTargetAlias()).append(" on ").append(join.getAlias())
 							.append(".").append(join.getColumn()).append(" = ").append(join.getTargetAlias())
 							.append(".").append(join.getTargetColumn());
+
 					// join表的配置
 					JSONObject joinTableConfig = tableConfigs.getObject(join.getTargetTable());
 					JSONObject joinColumnConfigs = joinTableConfig.getObject(TableConfig.COLUMNS);
 					for (String joinColumn : joinColumnConfigs.keySet()) {
-						columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
-								.append(" ").append("'").append(join.getTargetTable()).append(".").append(joinColumn)
-								.append("'");
+						if (join.getTable().equals(table)) {
+							columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
+									.append(" ").append("'").append(join.getTargetTable()).append(".")
+									.append(joinColumn).append("'");
+						} else {
+							columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
+									.append(" ").append("'").append(join.getTable()).append(".")
+									.append(join.getTargetTable()).append(".").append(joinColumn).append("'");
+						}
 					}
 				}
 			}
@@ -186,26 +189,8 @@ public class Select extends SQLBuilder {
 		}
 
 		builder.append("select ").append(columnString).append(tableString);
-		//		if (!isEmpty(where)) {
-		//			builder.append(" where ").append(where);
-		//		}
-		if (!conditions.isEmpty()) {
-			builder.append(" where");
-			boolean first = true;
-			for (Condition condition : conditions) {
-				String conditionSql = condition.sql();
-				if (first) {
-					if (conditionSql.startsWith(Operator.AND.sql())) {
-						conditionSql = conditionSql.substring(4);
-					} else if (conditionSql.startsWith(Operator.OR.sql())) {
-						conditionSql = conditionSql.substring(3);
-					}
-				}
-				builder.append(" ").append(conditionSql);
-				condition.getValues().forEach(params::add);
-				first = false;
-			}
-		}
+		// Where
+		builder.append(buildWhere());
 		if (!isEmpty(groups)) {
 			builder.append(" group by ").append(String.join(",", groups));
 		}
@@ -215,6 +200,7 @@ public class Select extends SQLBuilder {
 		sql = builder.toString();
 		if (!isEmpty(limit)) {
 			countSql = count(sql);
+			whereParams = new ArrayList<>(params);
 			sql = dialect.processLimit(sql);
 			Object[] limitParams = dialect.processLimitParams(new Page(limit[0], limit[1]));
 			params.addAll(Arrays.asList(limitParams));
@@ -223,11 +209,15 @@ public class Select extends SQLBuilder {
     }
 
 	public String count(String sql) {
-		return "select count(1) from (" + sql + ") t";
+		return "select count(1) from (" + sql + ") origin_table";
 	}
 
 	public String getCountSql() {
 		return countSql;
+	}
+
+	public List<Object> getWhereParams() {
+		return whereParams;
 	}
 
 	public String primaryTableSql() {

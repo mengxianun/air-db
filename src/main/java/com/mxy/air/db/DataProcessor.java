@@ -85,7 +85,7 @@ public class DataProcessor {
 				// 查询将要更新的数据库记录, 看该必填字段是否已经有值, 已经有值的情况下, update时该字段可以不填
 				if (builder.statementType == StatementType.UPDATE) {
 					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
-							.params(builder.whereParams());
+							.params(((Update) builder).whereParams());
 					select.build();
 					List<Map<String, Object>> updateRecords = sqlSession.list(select.sql(), select.params().toArray());
 					for (Map<String, Object> record : updateRecords) {
@@ -114,7 +114,8 @@ public class DataProcessor {
 				} else if (builder instanceof Update) {
 					// update操作唯一性验证排除自身, 通过where和params定位自身, 再reverse排除自身, 再equal查询其他包含该属性的记录
 					SQLBuilder select = SQLBuilder.select(builder.table()).where(builder.where())
-							.whereParams(Lists.newArrayList(builder.whereParams())).reverse().equal(column, value);
+							.params(Lists.newArrayList(((Update) builder).whereParams())).reverse()
+							.equal(column, value);
 
 					select.build();
 					exist = sqlSession.detail(select.sql(), select.params().toArray()) != null;

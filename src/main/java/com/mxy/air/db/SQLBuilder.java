@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Delete;
 import com.mxy.air.db.builder.Insert;
@@ -62,9 +63,6 @@ public abstract class SQLBuilder {
 	// SQL语句参数，该属性包含where条件参数
 	protected List<Object> params = new ArrayList<>();
 
-	// where条件语句参数
-	protected List<Object> whereParams = new ArrayList<>();
-
 	// 条件
 	protected List<Condition> conditions = new ArrayList<>();
 
@@ -78,32 +76,61 @@ public abstract class SQLBuilder {
 		return new Select(table);
 	}
 
-	public static Select select(String table, String alias, List<Join> joins, String[] columns, String where,
-			List<Object> params, List<Condition> conditions, String[] groups,
+	public static Select select(String table, String alias, List<Join> joins, String[] columns,
+			List<Condition> conditions, String[] groups,
 			String[] orders,
 			long[] limit) {
-		return new Select(table, alias, joins, columns, where, params, conditions,
-				groups, orders,
-				limit);
+		return new Select(table, alias, joins, columns, conditions, groups, orders, limit);
     }
 
 	public static Insert insert(String table, Map<String, Object> values) {
 		return new Insert(table, values);
 	}
 
-	public static Update update(String table, String alias, Map<String, Object> values, String where,
-			List<Object> params) {
-		return new Update(table, alias, values, where, params);
+	public static Update update(String table, String alias, Map<String, Object> values, List<Condition> conditions) {
+		return new Update(table, alias, values, conditions);
     }
 
-	public static Delete delete(String table, String alias, String where, List<Object> params) {
-		return new Delete(table, alias, where, params);
+	public static Delete delete(String table, String alias, List<Condition> conditions) {
+		return new Delete(table, alias, conditions);
     }
     
-	protected abstract SQLBuilder build();
+	protected SQLBuilder build() {
+		/*
+		 * 初始清空构建数据, 防止再次构建时有脏数据
+		 */
+		sql = null;
+		params.clear();
+		conditions.forEach(c -> c.getValues().clear());
+		return toBuild();
+	}
+
+	protected abstract SQLBuilder toBuild();
 
 	public StatementType geStatementType() {
 		return statementType;
+	}
+
+	protected String buildWhere() {
+		StringBuilder builder = new StringBuilder();
+		if (!conditions.isEmpty()) {
+			builder.append(" where");
+			boolean first = true;
+			for (Condition condition : conditions) {
+				String conditionSql = condition.sql();
+				if (first) {
+					if (conditionSql.startsWith(Operator.AND.sql())) {
+						conditionSql = conditionSql.substring(4);
+					} else if (conditionSql.startsWith(Operator.OR.sql())) {
+						conditionSql = conditionSql.substring(3);
+					}
+				}
+				builder.append(" ").append(conditionSql);
+				condition.getValues().forEach(params::add);
+				first = false;
+			}
+		}
+		return builder.toString();
 	}
     
 	public boolean isEmpty(final CharSequence cs) {
@@ -244,8 +271,6 @@ public abstract class SQLBuilder {
 
 	public SQLBuilder values(Map<String, Object> values) {
 		this.values = values;
-		// 插入或更新, SQL参数由values重新构成
-		this.params.clear();
 		return this;
 	}
 
@@ -264,16 +289,6 @@ public abstract class SQLBuilder {
 
 	public SQLBuilder params(List<Object> params) {
 		this.params = params;
-		return this;
-	}
-
-	public List<Object> whereParams() {
-		return whereParams;
-	}
-
-	public SQLBuilder whereParams(List<Object> whereParams) {
-		this.whereParams = whereParams;
-		this.params = whereParams;
 		return this;
 	}
 

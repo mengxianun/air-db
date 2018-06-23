@@ -218,12 +218,14 @@ public class Translator {
 			}
 			SQLSession sqlSession = AirContext.getSqlSession(db);
 			String realDbName = sqlSession.getDbName();
-			String sql = "select * from information_schema.columns where table_schema = ?";
+			String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
 			List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName });
 			for (Map<String, Object> tableInfo : tableInfos) {
-				String tableName = tableInfo.get("TABLE_NAME").toString();
-				String column = tableInfo.get("COLUMN_NAME").toString();
-				String dataType = tableInfo.get("DATA_TYPE").toString();
+				String tableName = tableInfo.get("table_name").toString();
+				String tableComment = tableInfo.get("table_comment").toString();
+				String column = tableInfo.get("column_name").toString();
+				String dataType = tableInfo.get("data_type").toString();
+				String columnComment = tableInfo.get("column_comment").toString();
 				if (dbTableConfig.containsKey(tableName)) {
 					JSONObject tableConfig = dbTableConfig.getObject(tableName);
 					if (tableConfig.containsKey(TableConfig.COLUMNS)) {
@@ -231,19 +233,33 @@ public class Translator {
 						if (columns.containsKey(column)) {
 							JSONObject columnConfig = columns.getObject(column);
 							columnConfig.put(Column.TYPE, dataType);
+							columnConfig.put(Column.COMMENT, columnComment);
 						} else {
-							columns.put(column, new JSONObject().put(Column.TYPE, dataType));
+							JSONObject columnConfig = new JSONObject();
+							columnConfig.put(Column.TYPE, dataType);
+							columnConfig.put(Column.COMMENT, columnComment);
+							columns.put(column, columnConfig);
 						}
 					} else {
 						JSONObject columns = new JSONObject();
-						columns.put(column, new JSONObject().put(Column.TYPE, dataType));
+						JSONObject columnConfig = new JSONObject();
+						columnConfig.put(Column.TYPE, dataType);
+						columnConfig.put(Column.COMMENT, columnComment);
+						columns.put(column, columnConfig);
 						tableConfig.put(TableConfig.COLUMNS, columns);
+					}
+					if (!tableConfig.containsKey(TableConfig.COMMENT)) {
+						tableConfig.put(TableConfig.COMMENT, tableComment);
 					}
 				} else {
 					JSONObject tableConfig = new JSONObject();
 					JSONObject columns = new JSONObject();
-					columns.put(column, new JSONObject().put(Column.TYPE, dataType));
+					JSONObject columnConfig = new JSONObject();
+					columnConfig.put(Column.TYPE, dataType);
+					columnConfig.put(Column.COMMENT, columnComment);
+					columns.put(column, columnConfig);
 					tableConfig.put(TableConfig.COLUMNS, columns);
+					tableConfig.put(TableConfig.COMMENT, tableComment);
 					dbTableConfig.put(tableName, tableConfig);
 				}
 			}

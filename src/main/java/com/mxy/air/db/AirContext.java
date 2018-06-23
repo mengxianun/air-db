@@ -63,6 +63,10 @@ public class AirContext {
 		return getAllTableConfig(db).getObject(table);
 	}
 
+	public static JSONObject getAllTableColumnConfig(String table) {
+		return getAllTableConfig(getDefaultDb()).getObject(table).getObject(TableConfig.COLUMNS);
+	}
+
 	public static JSONObject getAllTableColumnConfig(String db, String table) {
 		return getAllTableConfig(db).getObject(table).getObject(TableConfig.COLUMNS);
 	}

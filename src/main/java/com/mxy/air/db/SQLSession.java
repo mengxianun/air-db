@@ -194,6 +194,11 @@ public class SQLSession {
 	}
 
 	@SQLLog
+	public int[] batch(String sql, Object[][] params) throws SQLException {
+		return runner.batch(getConnection(), isCloseConnection(), sql, params);
+	}
+
+	@SQLLog
 	public int update(String sql, Object[] params) throws SQLException {
 		return runner.update(getConnection(), isCloseConnection(), sql, params);
 	}

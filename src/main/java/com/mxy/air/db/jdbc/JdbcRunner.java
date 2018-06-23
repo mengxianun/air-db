@@ -308,6 +308,55 @@ public class JdbcRunner extends AbstractJdbcRunner {
 		return result;
 	}
 
+	public int[] batch(String sql, Object[][] params) throws SQLException {
+		return this.batch(getConnection(), true, sql, params);
+	}
+
+	public int[] batch(Connection conn, String sql, Object[][] params) throws SQLException {
+		return this.batch(conn, false, sql, params);
+	}
+
+	public int[] batch(Connection conn, boolean closeConn, String sql, Object[][] params) throws SQLException {
+		if (conn == null) {
+			throw new SQLException("Null connection");
+		}
+
+		if (sql == null) {
+			if (closeConn) {
+				close(conn);
+			}
+			throw new SQLException("Null SQL statement");
+		}
+
+		if (params == null) {
+			if (closeConn) {
+				close(conn);
+			}
+			throw new SQLException("Null parameters. If parameters aren't need, pass an empty array.");
+		}
+
+		PreparedStatement stmt = null;
+		int[] rows = null;
+		try {
+			stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+			for (int i = 0; i < params.length; i++) {
+				this.fillStatement(stmt, params[i]);
+				stmt.addBatch();
+			}
+			rows = stmt.executeBatch();
+
+		} catch (SQLException e) {
+			this.rethrow(e, sql, (Object[]) params);
+		} finally {
+			close(stmt);
+			if (closeConn) {
+				close(conn);
+			}
+		}
+
+		return rows;
+	}
+
 	/**
 	 * 执行批量插入SQL, 从数据源中获取连接, 操作完成关闭数据库连接
 	 * 
@@ -320,7 +369,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @return
 	 * @throws SQLException
 	 */
-	public <T> T insertBatch(String sql, ResultSetHandler<T> handler, Object[]... params) throws SQLException {
+	public <T> T insertBatch(String sql, ResultSetHandler<T> handler, Object[][] params) throws SQLException {
 		return insertBatch(getConnection(), true, sql, handler, params);
 	}
 
@@ -338,7 +387,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @return
 	 * @throws SQLException
 	 */
-	public <T> T insertBatch(Connection conn, String sql, ResultSetHandler<T> handler, Object[]... params)
+	public <T> T insertBatch(Connection conn, String sql, ResultSetHandler<T> handler, Object[][] params)
 			throws SQLException {
 		return insertBatch(conn, false, sql, handler, params);
 	}
@@ -360,7 +409,7 @@ public class JdbcRunner extends AbstractJdbcRunner {
 	 * @throws SQLException
 	 */
 	private <T> T insertBatch(Connection conn, boolean closeConn, String sql, ResultSetHandler<T> handler,
-			Object[]... params) throws SQLException {
+			Object[][] params) throws SQLException {
 		T result = null;
 		PreparedStatement stmt = null;
 		try {

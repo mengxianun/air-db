@@ -21,7 +21,12 @@ public enum TableConfig {
 	/*
 	 * 列
 	 */
-	COLUMNS;
+	COLUMNS,
+
+	/*
+	 * 注释
+	 */
+	COMMENT;
 
 	public enum Column {
 
@@ -53,7 +58,12 @@ public enum TableConfig {
 		/*
 		 * 关联表
 		 */
-		ASSOCIATION
+		ASSOCIATION,
+
+		/*
+		 * 注释
+		 */
+		COMMENT;
 	}
 
 	public enum Association {

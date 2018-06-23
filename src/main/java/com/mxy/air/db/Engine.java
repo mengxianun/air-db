@@ -678,4 +678,16 @@ public class Engine {
 		return type;
 	}
 
+	public String getDb() {
+		return db;
+	}
+
+	public String getTable() {
+		return table;
+	}
+
+	public String getAlias() {
+		return alias;
+	}
+
 }

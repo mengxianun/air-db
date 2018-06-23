@@ -2,9 +2,9 @@ package com.mxy.air.db.builder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
@@ -44,6 +44,8 @@ public class Select extends SQLBuilder {
 	}
 
 	public Select toBuild() {
+		if (alias == null)
+			alias = "";
 		String aliasPrefix = Strings.isNullOrEmpty(alias) ? "" : alias + ".";
 		if (db == null)
 			db = AirContext.getDefaultDb();
@@ -56,7 +58,37 @@ public class Select extends SQLBuilder {
     	StringBuilder builder = new StringBuilder();
 		// 表字符串
 		StringBuilder tableString = new StringBuilder();
-		tableString.append(" from ").append(table).append(" ").append(alias);
+		/*
+		 * 在存在一对多或多对多并且分页查询的情况下, 将基础表数据库作为子查询, 以保证分页的准确性
+		 */
+		boolean manyLimit = false;
+		if (!isEmpty(joins)) { // 存在关联表查询
+			for (Join join : joins) {
+				TableConfig.Association.Type associationType = AirContext.getAssociation(db, join.getTable(),
+						join.getTargetTable());
+				if (associationType == TableConfig.Association.Type.ONE_TO_MANY
+						|| associationType == TableConfig.Association.Type.MANY_TO_MANY) {
+					if (!isEmpty(limit)) {
+						manyLimit = true;
+					}
+				}
+			}
+		}
+		if (manyLimit) {
+			// 主表的查询条件
+			List<Condition> primaryTableConditions = conditions.stream().filter(c -> c.getTable().equals(table))
+					.collect(Collectors.toList());
+			conditions.removeAll(primaryTableConditions);
+			Select primarySelect = new Select(table, null, Collections.emptyList(), null, primaryTableConditions, null,
+					null, limit);
+			primarySelect.build();
+			tableString.append(" from (").append(primarySelect.sql()).append(") ").append(alias);
+			countSql = primarySelect.getCountSql();
+			whereParams = primarySelect.getWhereParams();
+			params.addAll(primarySelect.params());
+		} else {
+			tableString.append(" from ").append(table).append(" ").append(alias);
+		}
 		// 列字符串
 		StringBuilder columnString = new StringBuilder();
 		// 拼接表字符串, 列字符串
@@ -103,14 +135,14 @@ public class Select extends SQLBuilder {
 			 *    如果用户指定了要查询的关联表的字段, 则只查询该关联表的指定字段
 			 */
 			// 所有要查询指定的关联表的字段
-			List<String> joinColumns = Lists.newArrayList(columns);
+			List<String> remainColumns = Lists.newArrayList(columns);
 			// 遍历所有要操作的字段，排除主表的字段，剩余的就是关联表的字段
 			for (String column : columns) {
 				if (column.contains(".")) { // 带表别名的字段
 					String[] tableAlias = column.split("\\.");
-					if (tableAlias[0].equals(alias)) { // 主表的字段
-						columnString.append(column).append(","); // 拼接主表字段字符串
-						joinColumns.remove(column); // 删除主表的字段
+					if (tableAlias[0].equals(table)) { // 主表的字段
+						columnString.append(aliasPrefix).append(tableAlias[1]).append(",");
+						remainColumns.remove(column); // 删除主表的字段
 					}
 				} else { // 未指定表别名字段
 					String columnName = column;
@@ -119,10 +151,9 @@ public class Select extends SQLBuilder {
 					}
 					if (columnConfigs.containsKey(columnName)) { // 查询的列在主表的列配置中, 即表示该列是属于主表的列
 						columnString.append(aliasPrefix).append(column).append(","); // 拼接主表字段字符串
-						joinColumns.remove(column); // 删除主表的字段
+						remainColumns.remove(column); // 删除主表的字段
 					} else { // 其他字段字符串, 如方法
 						/*
-						 * TO-DO
 						 *   判断查询列是否为函数, 是函数的话直接拼接, 不是的话不拼接
 						 */
 						columnString.append(column).append(",");
@@ -147,7 +178,7 @@ public class Select extends SQLBuilder {
 					// 查询字段是否已经指定了关联表的字段，如果已经指定，则什么都不做，如果没有指定，则查询所有关联表字段
 					boolean specialColumn = false;
 					List<String> removeJoinColumns = new ArrayList<>();
-					for (String column : joinColumns) {
+					for (String column : remainColumns) {
 						if (column.contains(".")) { // 带表别名的字段
 							String[] tableAlias = column.split("\\.");
 							if (tableAlias[0].equals(join.getTargetAlias())) { // 存在关联表的别名，代表已经指定了关联表的字段
@@ -175,7 +206,7 @@ public class Select extends SQLBuilder {
 						}
 					}
 					// 删除已经匹配到关联表的关联表字段
-					joinColumns.removeAll(removeJoinColumns);
+					remainColumns.removeAll(removeJoinColumns);
 					// 未指定关联表字段，则查询所有关联表字段
 					if (!specialColumn) {
 						for (String joinColumn : joinColumnConfigs.keySet()) {
@@ -185,6 +216,12 @@ public class Select extends SQLBuilder {
 						}
 					}
 				}
+			}
+			/*
+			 * 处理剩余的既不是主表的字段, 也不是关联表的字段, 如数据库函数
+			 */
+			for (String remainColumn : remainColumns) {
+				columnString.append(",").append(remainColumn);
 			}
 		}
 
@@ -198,7 +235,7 @@ public class Select extends SQLBuilder {
 			builder.append(" order by ").append(String.join(",", orders));
 		}
 		sql = builder.toString();
-		if (!isEmpty(limit)) {
+		if (!isEmpty(limit) && !manyLimit) {
 			countSql = count(sql);
 			whereParams = new ArrayList<>(params);
 			sql = dialect.processLimit(sql);
@@ -218,50 +255,6 @@ public class Select extends SQLBuilder {
 
 	public List<Object> getWhereParams() {
 		return whereParams;
-	}
-
-	public String primaryTableSql() {
-		JSONObject tableConfigs = AirContext.getAllTableConfig(db);
-		// 主表的配置
-		JSONObject tableConfig = tableConfigs.getObject(table);
-		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
-		// 主表列
-		Set<String> primaryColumns = new HashSet<>();
-		if (columns == null) {
-			primaryColumns = columnConfigs.keySet();
-		} else {
-			for (String column : columns) {
-				primaryColumns.add(column);
-			}
-		}
-		StringBuilder primaryWhere = new StringBuilder();
-		List<Condition> primaryConditions = new ArrayList<>();
-		// 主表where
-		if (!conditions.isEmpty()) {
-			//			List<String> conditions = Arrays.stream(where.split(" +")).filter(w -> !Operator.AND.sql().equals(w) && !Operator.OR.sql().equals(w)).collect(Collectors.toList());
-			//			for (String condition : conditions) {
-			//				if (condition.indexOf(alias + ".") != -1) { // 主表
-			//					primaryWhere.append("");
-			//				}
-			//			}
-			for (Condition condition : conditions) {
-				if (condition.getColumn().indexOf(alias + ".") != -1) { // 指定了主表别名, 则为主表字段主表
-					primaryConditions.add(condition);
-				} else if (condition.getColumn().indexOf(".") == -1
-						&& columnConfigs.containsKey(condition.getColumn())) { // 未指定表别名, 但是列是属于主表的列
-					primaryConditions.add(condition);
-				}
-			}
-			for (Condition condition : primaryConditions) {
-
-			}
-		}
-		//		new Select(table, alias == null ? DEFAULT_ALIAS : alias, joins, columns, where, params, groups, orders, limit);
-		return null;
-	}
-
-	public String joinTableSql() {
-		return null;
 	}
 
 }

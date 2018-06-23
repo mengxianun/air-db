@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.google.common.base.Strings;
 import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
@@ -105,6 +106,15 @@ public class Engine {
 			String[] dbTableString = table.split("\\.");
 			db = dbTableString[0];
 			table = dbTableString[1];
+			if (table.indexOf(" ") != -1) {
+				String[] tableAlias = table.split(" ");
+				table = tableAlias[0];
+				alias = tableAlias[1];
+			}
+		} else if (table.indexOf(" ") != -1) {
+			String[] tableAlias = table.split(" ");
+			table = tableAlias[0];
+			alias = tableAlias[1];
 		}
 		if (db == null) {
 			db = AirContext.getDefaultDb();
@@ -112,7 +122,7 @@ public class Engine {
 		/*
 		 * Elasticsearch 不添加别名
 		 */
-		if (!AirContext.isElasticsearch(db)) {
+		if (!AirContext.isElasticsearch(db) && Strings.isNullOrEmpty(alias)) {
 			alias = DEFAULT_ALIAS;
 		}
 		aliases.put(table, alias);
@@ -578,48 +588,26 @@ public class Engine {
 		} else {
 			groupArray = new String[] { group.toString() };
 		}
-		List<String> newGroup = new ArrayList<>();
-		for (String field : groupArray) {
+		String[] newGroup = new String[groupArray.length];
+		for (int i = 0; i < groupArray.length; i++) {
+			String column = groupArray[i];
 			/*
-			 * 如果字段没有指定表别名, 添加表别名
-			 * ***********临时方法, 待优化***********
+			 * 判断列所属的表
+			 * 1. column1 // 主表的列
+			 * 2. table1.column1 // 指定表的列
 			 */
-			if (field.indexOf(".") == -1) {
-				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
-				if (tableColumnConfig.containsKey(field)) {
-					field = DEFAULT_ALIAS + "." + field;
-				} else {
-					if (joins != null) {
-						for (Join join : joins) {
-							JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
-									join.getTargetTable());
-							if (joinTableColumnConfig.containsKey(field)) {
-								field = join.getTargetAlias() + "." + field;
-								break;
-							}
-						}
-					}
-				}
+			if (column.indexOf(".") != -1) {
+				String[] tableColumn = column.split("\\.");
+				newGroup[i] = aliases.get(tableColumn[0]) + "." + tableColumn[1];
 			} else {
-				String[] whereTableField = field.split("\\.");
-				String whereTable = whereTableField[0];
-				String whereField = whereTableField[1];
-				if (whereTable.equals(table)) {
-					field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
+				if (Strings.isNullOrEmpty(alias)) {
+					newGroup[i] = column;
 				} else {
-					if (joins != null) {
-						for (Join join : joins) {
-							if (whereTable.equals(join.getTargetTable())) {
-								field = join.getTargetAlias() + "." + whereField;
-								break;
-							}
-						}
-					}
+					newGroup[i] = alias + "." + column;
 				}
 			}
-			newGroup.add(field);
 		}
-		return newGroup.toArray(new String[] {});
+		return newGroup;
 	}
 
 	/**
@@ -639,52 +627,26 @@ public class Engine {
 		} else {
 			orderArray = new String[] { parseOrderField(order.toString()) };
 		}
-		List<String> newOrder = new ArrayList<>();
-		for (String field : orderArray) {
+		String[] newOrder = new String[orderArray.length];
+		for (int i = 0; i < orderArray.length; i++) {
+			String column = orderArray[i];
 			/*
-			 * 如果字段没有指定表别名, 添加表别名
-			 * ***********临时方法, 待优化***********
+			 * 判断列所属的表
+			 * 1. column1 // 主表的列
+			 * 2. table1.column1 // 指定表的列
 			 */
-			String realField = field;
-			if (field.indexOf(" ") != -1) {
-				realField = field.split(" +")[0];
-			}
-			if (realField.indexOf(".") == -1) {
-				JSONObject tableColumnConfig = AirContext.getAllTableColumnConfig(db, table);
-				if (tableColumnConfig.containsKey(realField)) {
-					field = DEFAULT_ALIAS + "." + field;
-				} else {
-					if (joins != null) {
-						for (Join join : joins) {
-							JSONObject joinTableColumnConfig = AirContext.getAllTableColumnConfig(db,
-									join.getTargetTable());
-							if (joinTableColumnConfig.containsKey(realField)) {
-								field = join.getTargetAlias() + "." + field;
-								break;
-							}
-						}
-					}
-				}
+			if (column.indexOf(".") != -1) {
+				String[] tableColumn = column.split("\\.");
+				newOrder[i] = aliases.get(tableColumn[0]) + "." + tableColumn[1];
 			} else {
-				String[] whereTableField = field.split("\\.");
-				String whereTable = whereTableField[0];
-				String whereField = whereTableField[1];
-				if (whereTable.equals(table)) {
-					field = (alias == null ? DEFAULT_ALIAS : alias) + "." + whereField;
+				if (Strings.isNullOrEmpty(alias)) {
+					newOrder[i] = column;
 				} else {
-					if (joins != null) {
-						for (Join join : joins) {
-							if (whereTable.equals(join.getTargetTable())) {
-								field = join.getTargetAlias() + "." + whereField;
-								break;
-							}
-						}
-					}
+					newOrder[i] = alias + "." + column;
 				}
 			}
-			newOrder.add(field);
 		}
-		return newOrder.toArray(new String[] {});
+		return newOrder;
 	}
 
 	/**

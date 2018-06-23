@@ -17,7 +17,7 @@ public class PageResult {
 	 * @author mengxiangyun
 	 *
 	 */
-	enum ATTRIBUTE {
+	public enum ATTRIBUTE {
 		START, END, TOTAL, DATA
 	}
 

@@ -588,6 +588,7 @@ public class Engine {
 		} else {
 			groupArray = new String[] { group.toString() };
 		}
+		JSONObject tableColumnsConfig = AirContext.getAllTableColumnConfig(db, table);
 		String[] newGroup = new String[groupArray.length];
 		for (int i = 0; i < groupArray.length; i++) {
 			String column = groupArray[i];
@@ -600,10 +601,10 @@ public class Engine {
 				String[] tableColumn = column.split("\\.");
 				newGroup[i] = aliases.get(tableColumn[0]) + "." + tableColumn[1];
 			} else {
-				if (Strings.isNullOrEmpty(alias)) {
-					newGroup[i] = column;
-				} else {
+				if (!Strings.isNullOrEmpty(alias) && tableColumnsConfig.containsKey(column)) {
 					newGroup[i] = alias + "." + column;
+				} else {
+					newGroup[i] = column;
 				}
 			}
 		}
@@ -627,6 +628,7 @@ public class Engine {
 		} else {
 			orderArray = new String[] { parseOrderField(order.toString()) };
 		}
+		JSONObject tableColumnsConfig = AirContext.getAllTableColumnConfig(db, table);
 		String[] newOrder = new String[orderArray.length];
 		for (int i = 0; i < orderArray.length; i++) {
 			String column = orderArray[i];
@@ -639,10 +641,10 @@ public class Engine {
 				String[] tableColumn = column.split("\\.");
 				newOrder[i] = aliases.get(tableColumn[0]) + "." + tableColumn[1];
 			} else {
-				if (Strings.isNullOrEmpty(alias)) {
-					newOrder[i] = column;
-				} else {
+				if (!Strings.isNullOrEmpty(alias) && tableColumnsConfig.containsKey(column)) {
 					newOrder[i] = alias + "." + column;
+				} else {
+					newOrder[i] = column;
 				}
 			}
 		}

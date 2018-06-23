@@ -151,13 +151,13 @@ public class Select extends SQLBuilder {
 					}
 					if (columnConfigs.containsKey(columnName)) { // 查询的列在主表的列配置中, 即表示该列是属于主表的列
 						columnString.append(aliasPrefix).append(column).append(","); // 拼接主表字段字符串
-						remainColumns.remove(column); // 删除主表的字段
 					} else { // 其他字段字符串, 如方法
 						/*
 						 *   判断查询列是否为函数, 是函数的话直接拼接, 不是的话不拼接
 						 */
 						columnString.append(column).append(",");
 					}
+					remainColumns.remove(column); // 删除字段
 				}
 			}
 			// 去掉最后的','分隔符

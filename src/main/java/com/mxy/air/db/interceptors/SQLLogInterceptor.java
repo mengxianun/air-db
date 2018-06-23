@@ -1,5 +1,6 @@
 package com.mxy.air.db.interceptors;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,7 +20,13 @@ public class SQLLogInterceptor implements MethodInterceptor {
 	public Object invoke(MethodInvocation invocation) throws Throwable {
 		Object[] args = invocation.getArguments();
 		// 拦截方法参数(String sql, Object[] params), 第一个参数为SQL语句, 第二个参数为SQL参数
-		print(args[0].toString(), (Object[]) args[1]);
+		try {
+			print(args[0].toString(), (Object[]) args[1]);
+		} catch (Throwable e) {
+			logger.error("SQL日志记录失败", e);
+			logger.error("SQL: {}", args[0].toString());
+			logger.error("PARAMS: {}", Arrays.toString((Object[]) args[1]));
+		}
 		return invocation.proceed();
 	}
 

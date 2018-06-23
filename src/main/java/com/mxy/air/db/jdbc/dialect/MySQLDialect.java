@@ -16,7 +16,7 @@ public class MySQLDialect implements Dialect {
 	}
 	
 	public Object[] processLimitParams(Page page) {
-		return new Object[] { page.getStart() == 0 ? 0 : page.getStart() - 1, page.getPageSize() };
+		return new Object[] { page.getStart(), page.getPageSize() };
 	}
 	
 }

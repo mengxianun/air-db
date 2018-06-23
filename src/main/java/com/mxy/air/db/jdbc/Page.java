@@ -2,8 +2,8 @@ package com.mxy.air.db.jdbc;
 
 /**
  * Jdbc分页对象
- * 页码从1开始, 起始行也从1开始
- * 例: 第1页, 每页5条: pageNum=1, pageSize=5, start=1, end=5
+ * 页码从1开始, 起始行从0开始
+ * 例: 第1页, 每页5条: pageNum=1, pageSize=5, start=0, end=4
  * 
  * @author mengxiangyun
  *
@@ -14,7 +14,8 @@ public class Page {
 	private int pageNum;
 	// 每页大小
 	private int pageSize;
-	// 起始行, 从1开始
+
+	// 起始行, 从0开始
 	private long start;
 	// 结束行
 	private long end;
@@ -46,7 +47,7 @@ public class Page {
 		this.start = start;
 		this.end = end;
 		this.pageSize = (int) (end - start);
-		this.pageNum = start/pageSize + (start % pageSize) > 0 ? 1 : 0;
+		this.pageNum = (start / pageSize + (start % pageSize) > 0 ? 1 : 0) + 1;
 	}
 
 	public int getPageNum() {

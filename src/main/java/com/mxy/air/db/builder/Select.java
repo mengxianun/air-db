@@ -139,9 +139,9 @@ public class Select extends SQLBuilder {
 			// 遍历所有要操作的字段，排除主表的字段，剩余的就是关联表的字段
 			for (String column : columns) {
 				if (column.contains(".")) { // 带表别名的字段
-					String[] tableAlias = column.split("\\.");
-					if (tableAlias[0].equals(table)) { // 主表的字段
-						columnString.append(aliasPrefix).append(tableAlias[1]).append(",");
+					String[] tableColumn = column.split("\\.");
+					if (tableColumn[0].equals(table)) { // 主表的字段
+						columnString.append(aliasPrefix).append(tableColumn[1]).append(",");
 						remainColumns.remove(column); // 删除主表的字段
 					}
 				} else { // 未指定表别名字段
@@ -180,14 +180,14 @@ public class Select extends SQLBuilder {
 					List<String> removeJoinColumns = new ArrayList<>();
 					for (String column : remainColumns) {
 						if (column.contains(".")) { // 带表别名的字段
-							String[] tableAlias = column.split("\\.");
-							if (tableAlias[0].equals(join.getTargetAlias())) { // 存在关联表的别名，代表已经指定了关联表的字段
+							String[] tableColumn = column.split("\\.");
+							if (tableColumn[0].equals(join.getTargetTable())) { // 存在关联表的别名，代表已经指定了关联表的字段
 								specialColumn = true;
-								columnString.append(",").append(column)
+								columnString.append(",").append(join.getTargetAlias()).append(".")
+										.append(tableColumn[1])
 										.append(" ").append("'").append(join.getTargetTable()).append(".")
-										.append(tableAlias[1]).append("'");
+										.append(tableColumn[1]).append("'");
 								removeJoinColumns.add(column);
-								//							joinColumns.remove(tableAlias[1]);
 							}
 						} else { // 未指定表别名字段
 							String columnName = column;
@@ -221,7 +221,10 @@ public class Select extends SQLBuilder {
 			 * 处理剩余的既不是主表的字段, 也不是关联表的字段, 如数据库函数
 			 */
 			for (String remainColumn : remainColumns) {
-				columnString.append(",").append(remainColumn);
+				if (!Strings.isNullOrEmpty(columnString.toString())) {
+					columnString.append(",");
+				}
+				columnString.append(remainColumn);
 			}
 		}
 

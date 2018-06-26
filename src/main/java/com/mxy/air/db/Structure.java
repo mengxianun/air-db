@@ -42,7 +42,11 @@ public enum Structure {
 	/*
 	 * 原生SQL模式
 	 */
-	NATIVE;
+	NATIVE,
+	/*
+	 * 返回结果
+	 */
+	RESULT;
 	
 	/**
 	 * 操作类型
@@ -81,7 +85,12 @@ public enum Structure {
 		/*
 		 * 数据库表配置结构
 		 */
-		STRUCT;
+		STRUCT,
+
+		/*
+		 * 导出CSV模板
+		 */
+		EXPORT_CSV_TPL;
 		
 		public static Type from(String name) {
 			for (Type type : values()) {
@@ -255,6 +264,13 @@ public enum Structure {
 			return this.sqlStyle;
 		}
 		
+	}
+
+	/*
+	 * 返回结果
+	 */
+	public enum Result {
+		CSV
 	}
 
 }

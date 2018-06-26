@@ -1,7 +1,12 @@
 package com.mxy.air.db;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -36,6 +41,8 @@ import com.mxy.air.db.jdbc.dialect.ElasticsearchDialect;
 import com.mxy.air.json.JSON;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
+import com.opencsv.CSVWriterBuilder;
+import com.opencsv.ICSVWriter;
 
 /**
  * 转换器, 将Json转换为SQL并执行数据库操作, 然后返回结果
@@ -408,6 +415,50 @@ public class Translator {
 		String result = handler.handle(engine).toString();
 		AirContext.outState();
 		return result;
+	}
+
+	/**
+	 * 将请求JSON解析后的结果写入流, 
+	 * @param json
+	 * @return 输入流
+	 * @throws SQLException
+	 * @throws IOException
+	 */
+	public InputStream translateToStream(String json) throws SQLException, IOException {
+		JSONObject jsonObject = new JSONObject(json);
+		if (jsonObject.containsKey(Structure.Type.EXPORT_CSV_TPL)) { // 导出CSV模板
+			String db = null;
+			String table = jsonObject.getString(Structure.Type.EXPORT_CSV_TPL);
+			if (table.indexOf(".") != -1) { // 指定了数据源
+				String[] dbTableString = table.split("\\.");
+				db = dbTableString[0];
+				table = dbTableString[1];
+				if (table.indexOf(" ") != -1) {
+					String[] tableAlias = table.split(" ");
+					table = tableAlias[0];
+				}
+			} else if (table.indexOf(" ") != -1) {
+				String[] tableAlias = table.split(" ");
+				table = tableAlias[0];
+			}
+			if (db == null) {
+				db = AirContext.getDefaultDb();
+			}
+			JSONObject columnsConfig = AirContext.getAllTableColumnConfig(db, table);
+			// CSV头部, 数据表每个列的DISPLAY
+			String[] header = columnsConfig.values().stream()
+					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
+
+			//		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(result.getBytes());
+			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
+					new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
+			try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
+				icsvWriter.writeNext(header);
+			}
+			return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+		}
+		throw new DbException("请求JSON解析失败");
 	}
 
 	/**

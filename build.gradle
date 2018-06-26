@@ -15,6 +15,9 @@ dependencies {
   implementation 'org.elasticsearch.client:transport:6.2.4'
   implementation 'org.nlpcn:elasticsearch-sql:6.2.4'
   implementation 'org.elasticsearch.plugin:transport-netty4-client:6.2.4'
+  // opencsv
+  implementation 'com.opencsv:opencsv:4.2'
+  
 }
 
 task sourceJar(type: Jar) {
@@ -26,7 +29,7 @@ publishing {
     mavenJava(MavenPublication) {
       groupId 'com.mxy.air'
       artifactId 'air-db'
-      version '2.6.5'
+      version '2.7.5'
 
       from components.java
 

@@ -24,7 +24,12 @@ public enum TableConfig {
 	COLUMNS,
 
 	/*
-	 * 注释
+	 * 数据库表名含义(中文), 与COMMENT不同, COMMENT依赖数据库, 而DISPLAY可以应用自定义, 方便cvs导出时的文件名等功能
+	 */
+	DISPLAY,
+
+	/*
+	 * 注释, 数据库表的注释
 	 */
 	COMMENT;
 
@@ -36,7 +41,7 @@ public enum TableConfig {
 		TYPE,
 
 		/*
-		 * 显示
+		 * 列显示(中文), 方便cvs导出时的表头等功能
 		 */
 		DISPLAY,
 

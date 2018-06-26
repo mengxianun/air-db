@@ -210,7 +210,10 @@ public class Select extends SQLBuilder {
 					// 未指定关联表字段，则查询所有关联表字段
 					if (!specialColumn) {
 						for (String joinColumn : joinColumnConfigs.keySet()) {
-							columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
+							if (!Strings.isNullOrEmpty(columnString.toString())) {
+								columnString.append(",");
+							}
+							columnString.append(join.getTargetAlias()).append(".").append(joinColumn)
 									.append(" ").append("'").append(join.getTargetTable()).append(".")
 									.append(joinColumn).append("'");
 						}

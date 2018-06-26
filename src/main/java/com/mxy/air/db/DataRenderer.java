@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.mxy.air.db.config.TableConfig;
-import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -303,13 +302,13 @@ public class DataRenderer {
 		if (value == null || columnConfig == null) {
 			return value;
 		}
-		if (columnConfig.containsKey(Column.DISPLAY)) {
-			Object displayConfigObject = columnConfig.get(Column.DISPLAY);
-			if (displayConfigObject instanceof JSONObject) {
-				JSONObject displayConfig = (JSONObject) displayConfigObject;
-				value = displayConfig.get(value.toString());
-			}
-		}
+		//		if (columnConfig.containsKey(Column.DISPLAY)) {
+		//			Object displayConfigObject = columnConfig.get(Column.DISPLAY);
+		//			if (displayConfigObject instanceof JSONObject) {
+		//				JSONObject displayConfig = (JSONObject) displayConfigObject;
+		//				value = displayConfig.get(value.toString());
+		//			}
+		//		}
 		return value;
 	}
 

@@ -1,5 +1,7 @@
 package com.mxy.air.db;
 
+import static com.mxy.air.db.Structure.FIELDS;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,18 +12,24 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.ElasticSearchDruidDataSourceFactory;
+import com.google.common.base.Strings;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
@@ -225,50 +233,49 @@ public class Translator {
 			}
 			SQLSession sqlSession = AirContext.getSqlSession(db);
 			String realDbName = sqlSession.getDbName();
-			String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
+			String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_key, c.extra, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
 			List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName });
 			for (Map<String, Object> tableInfo : tableInfos) {
 				String tableName = tableInfo.get("table_name").toString();
 				String tableComment = tableInfo.get("table_comment").toString();
 				String column = tableInfo.get("column_name").toString();
 				String dataType = tableInfo.get("data_type").toString();
+				String columnKey = tableInfo.get("column_key").toString();
+				//				String extra = tableInfo.get("extra").toString();
 				String columnComment = tableInfo.get("column_comment").toString();
+				// 获取数据库表配置
+				JSONObject tableConfig = null;
 				if (dbTableConfig.containsKey(tableName)) {
-					JSONObject tableConfig = dbTableConfig.getObject(tableName);
-					if (tableConfig.containsKey(TableConfig.COLUMNS)) {
-						JSONObject columns = tableConfig.getObject(TableConfig.COLUMNS);
-						if (columns.containsKey(column)) {
-							JSONObject columnConfig = columns.getObject(column);
-							columnConfig.put(Column.TYPE, dataType);
-							columnConfig.put(Column.COMMENT, columnComment);
-						} else {
-							JSONObject columnConfig = new JSONObject();
-							columnConfig.put(Column.TYPE, dataType);
-							columnConfig.put(Column.COMMENT, columnComment);
-							columns.put(column, columnConfig);
-						}
-					} else {
-						JSONObject columns = new JSONObject();
-						JSONObject columnConfig = new JSONObject();
-						columnConfig.put(Column.TYPE, dataType);
-						columnConfig.put(Column.COMMENT, columnComment);
-						columns.put(column, columnConfig);
-						tableConfig.put(TableConfig.COLUMNS, columns);
-					}
-					if (!tableConfig.containsKey(TableConfig.COMMENT)) {
-						tableConfig.put(TableConfig.COMMENT, tableComment);
-					}
+					tableConfig = dbTableConfig.getObject(tableName);
 				} else {
-					JSONObject tableConfig = new JSONObject();
-					JSONObject columns = new JSONObject();
-					JSONObject columnConfig = new JSONObject();
-					columnConfig.put(Column.TYPE, dataType);
-					columnConfig.put(Column.COMMENT, columnComment);
-					columns.put(column, columnConfig);
-					tableConfig.put(TableConfig.COLUMNS, columns);
-					tableConfig.put(TableConfig.COMMENT, tableComment);
+					tableConfig = new JSONObject();
 					dbTableConfig.put(tableName, tableConfig);
 				}
+				// 主键
+				if (columnKey.equals("PRI")) {
+					tableConfig.put(TableConfig.PRIMARY_KEY, column);
+				}
+				// 数据库表注释
+				tableConfig.put(TableConfig.COMMENT, tableComment);
+				// 获取所有列配置
+				JSONObject columns = null;
+				if (tableConfig.containsKey(TableConfig.COLUMNS)) {
+					columns = tableConfig.getObject(TableConfig.COLUMNS);
+				} else {
+					columns = new JSONObject();
+					tableConfig.put(TableConfig.COLUMNS, columns);
+				}
+				// 获取列配置
+				JSONObject columnConfig = null;
+				if (columns.containsKey(column)) {
+					columnConfig = columns.getObject(column);
+				} else {
+					columnConfig = new JSONObject();
+					columns.put(column, columnConfig);
+				}
+				// 更新列配置
+				columnConfig.put(Column.TYPE, dataType);
+				columnConfig.put(Column.COMMENT, columnComment);
 			}
 		}
 	}
@@ -425,40 +432,159 @@ public class Translator {
 	 * @throws IOException
 	 */
 	public InputStream translateToStream(String json) throws SQLException, IOException {
-		JSONObject jsonObject = new JSONObject(json);
-		if (jsonObject.containsKey(Structure.Type.EXPORT_CSV_TPL)) { // 导出CSV模板
-			String db = null;
-			String table = jsonObject.getString(Structure.Type.EXPORT_CSV_TPL);
-			if (table.indexOf(".") != -1) { // 指定了数据源
-				String[] dbTableString = table.split("\\.");
-				db = dbTableString[0];
-				table = dbTableString[1];
-				if (table.indexOf(" ") != -1) {
-					String[] tableAlias = table.split(" ");
-					table = tableAlias[0];
+		AirParser parser = new AirParser(json);
+		JSONObject jsonObject = parser.getObject();
+		String db = parser.getDb();
+		String table = parser.getTable();
+		if (parser.getType() == Structure.Type.EXPORT_CSV_TPL) { // 导出CSV模板
+			JSONObject tableConfig = AirContext.getTableConfig(db, table);
+			String primaryKey = tableConfig.getString(TableConfig.PRIMARY_KEY);
+			JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
+			String[] columns = columnsConfig.keySet().toArray(new String[] {});
+			if (jsonObject.containsKey(Structure.FIELDS)) { // 指定了列
+				columns = jsonObject.getArray(FIELDS).toStringArray();
+			}
+			// CSV头部(列)
+			List<String> columnHeader = new ArrayList<>();
+			// CSV头部(列显示名称)
+			List<String> columnHeaderDisplay = new ArrayList<>();
+			for (String column : columns) {
+				if (column.equals(primaryKey)) { // CSV模板不导出主键
+					continue;
 				}
-			} else if (table.indexOf(" ") != -1) {
-				String[] tableAlias = table.split(" ");
-				table = tableAlias[0];
+				columnHeader.add(column);
+				JSONObject columnConfig = columnsConfig.getObject(column);
+				String columnDisplay = columnConfig.getString(TableConfig.Column.DISPLAY);
+				if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+					JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+					StringBuilder builder = new StringBuilder();
+					builder.append(columnDisplay).append("(");
+					String[] codeValues = columnCode.keySet().stream().map(k -> k + ":" + columnCode.get(k))
+							.toArray(String[]::new);
+					builder.append(String.join(",", codeValues));
+					builder.append(")");
+					columnHeaderDisplay.add(builder.toString());
+				} else {
+					columnHeaderDisplay.add(columnDisplay);
+				}
 			}
-			if (db == null) {
-				db = AirContext.getDefaultDb();
-			}
-			JSONObject columnsConfig = AirContext.getAllTableColumnConfig(db, table);
 			// CSV头部, 数据表每个列的DISPLAY
-			String[] header = columnsConfig.values().stream()
-					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
-
-			//		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(result.getBytes());
+			//			String[] header = columnsConfig.values().stream()
+			//					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
 			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 			CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
 					new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
 			try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
-				icsvWriter.writeNext(header);
+				icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
+				icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
 			}
 			return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+		} else if (jsonObject.containsKey(Structure.RESULT)) { // 导出CSV数据
+			String result = jsonObject.getString(Structure.RESULT);
+			if (result.equalsIgnoreCase(Structure.Result.CSV.toString())) {
+				String translateResult = translate(json);
+				List<Object> resultList = null;
+				if (jsonObject.containsKey(Structure.LIMIT)) { // 分页
+					resultList = new JSONObject(translateResult).getArray(PageResult.ATTRIBUTE.DATA).list();
+				} else {
+					resultList = new JSONArray(translateResult).list();
+				}
+				/*
+				 * CSV需要的格式数据
+				 */
+				List<String[]> csvData = new ArrayList<>();
+				// CSV头部(列)
+				List<String> columnHeader = new ArrayList<>();
+				// CSV头部(列显示名称)
+				List<String> columnHeaderDisplay = new ArrayList<>();
+				/*
+				 * 构建头部数据
+				 */
+				JSONObject firstRecord = (JSONObject) resultList.iterator().next();
+				for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
+					String column = entry.getKey();
+					Object value = entry.getValue();
+					if (value instanceof JSONObject) { // 关联对象的情况暂不处理
+						// header.addAll(buildHeader((JSONObject) value, db, column));
+					} else {
+						columnHeader.add(column);
+						JSONObject columnConfig = AirContext.getAllTableColumnConfig(db, table).getObject(column);
+						String columnDisplay = Strings.nullToEmpty(columnConfig.getString(TableConfig.Column.DISPLAY));
+						if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+							JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+							StringBuilder builder = new StringBuilder();
+							builder.append(columnDisplay).append("(");
+							String[] codeValues = columnCode.keySet().stream().map(k -> k + ":" + columnCode.get(k))
+									.toArray(String[]::new);
+							builder.append(String.join(",", codeValues));
+							builder.append(")");
+							columnHeaderDisplay.add(builder.toString());
+						} else {
+							columnHeaderDisplay.add(columnDisplay);
+						}
+					}
+				}
+				//					header = buildHeader((JSONObject) resultList.iterator().next(), db, table);
+				// 构建具体数据
+				if (!resultList.isEmpty()) {
+					csvData = resultList.stream()
+							.map(o -> buildRecord((JSONObject) o, db, table).toArray(new String[] {}))
+							.collect(Collectors.toList());
+				}
+				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+				CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
+						new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
+				try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
+					icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
+					icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
+					icsvWriter.writeAll(csvData);
+				}
+				return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+			}
 		}
 		throw new DbException("请求JSON解析失败");
+	}
+
+	private List<String> buildRecord(JSONObject recordObject, String db, String table) {
+		List<String> csvRecord = new ArrayList<>();
+		for (Map.Entry<String, Object> entry : recordObject.entrySet()) {
+			String column = entry.getKey();
+			Object value = entry.getValue();
+			if (value == null) {
+				csvRecord.add("");
+			} else if (value instanceof JSONObject) { // 关联对象的情况暂不处理
+				// csvRecord.addAll(buildRecord((JSONObject) value));
+			} else {
+				JSONObject columnConfig = AirContext.getAllTableColumnConfig(db, table).getObject(column);
+				if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+					JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+					csvRecord.add(columnCode.get(value.toString()).toString());
+				} else if (columnConfig.containsKey(TableConfig.Column.FORMAT)) {
+					String columnType = columnConfig.getString(TableConfig.Column.TYPE);
+					JSONObject columnFormat = columnConfig.getObject(TableConfig.Column.FORMAT);
+					if (columnFormat.containsKey(TableConfig.Format.DATETIME)) {
+						String pattern = columnFormat.getString(TableConfig.Format.DATETIME);
+						String formatedValue = "";
+						if ("bigint".equals(columnType)) {
+							Instant instant = Instant.ofEpochMilli(Long.valueOf(value.toString()));
+							DateTimeFormatter fmt = DateTimeFormatter.ofPattern(pattern);
+							formatedValue = fmt.format(instant.atZone(ZoneId.systemDefault()));
+						} else {
+							try {
+								LocalDateTime datetime = LocalDateTime.parse(value.toString());
+								formatedValue = datetime.format(DateTimeFormatter.ofPattern(pattern));
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+						}
+						csvRecord.add(formatedValue);
+					}
+				} else {
+					csvRecord.add(value.toString());
+				}
+			}
+		}
+		return csvRecord;
 	}
 
 	/**

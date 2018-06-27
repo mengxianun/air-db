@@ -66,6 +66,16 @@ public enum TableConfig {
 		ASSOCIATION,
 
 		/*
+		 * 字典编码, 如: 1男 2女
+		 */
+		CODE,
+
+		/*
+		 * 列格式
+		 */
+		FORMAT,
+
+		/*
 		 * 注释
 		 */
 		COMMENT;
@@ -130,6 +140,10 @@ public enum TableConfig {
 		 * 当前时间
 		 */
 		TIME
+	}
+
+	public enum Format {
+		DATETIME
 	}
 
 }

@@ -29,7 +29,7 @@ publishing {
     mavenJava(MavenPublication) {
       groupId 'com.mxy.air'
       artifactId 'air-db'
-      version '2.7.5'
+      version '2.7.6'
 
       from components.java
 

@@ -108,12 +108,12 @@ public class AirParser {
 		type = types.get(0);
 	}
 
-	public String getTable() {
-		return table;
+	public JSONObject getObject() {
+		return object;
 	}
 
-	public void setTable(String table) {
-		this.table = table;
+	public String getTable() {
+		return table;
 	}
 
 	public Type getType() {

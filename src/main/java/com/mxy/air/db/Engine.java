@@ -592,7 +592,7 @@ public class Engine {
 		} else {
 			groupArray = new String[] { group.toString() };
 		}
-		JSONObject tableColumnsConfig = AirContext.getAllTableColumnConfig(db, table);
+		JSONObject tableColumnsConfig = AirContext.getColumnsConfig(db, table);
 		String[] newGroup = new String[groupArray.length];
 		for (int i = 0; i < groupArray.length; i++) {
 			String column = groupArray[i];
@@ -632,7 +632,7 @@ public class Engine {
 		} else {
 			orderArray = new String[] { parseOrderField(order.toString()) };
 		}
-		JSONObject tableColumnsConfig = AirContext.getAllTableColumnConfig(db, table);
+		JSONObject tableColumnsConfig = AirContext.getColumnsConfig(db, table);
 		String[] newOrder = new String[orderArray.length];
 		for (int i = 0; i < orderArray.length; i++) {
 			String column = orderArray[i];

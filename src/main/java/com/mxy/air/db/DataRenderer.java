@@ -61,15 +61,8 @@ public class DataRenderer {
 		 * }
 		 */
 		JSONObject uniqueRecordTableData = new JSONObject();
-		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
-		if (tableConfig == null) {
-			tableConfig = new JSONObject();
-		}
-		JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
-		if (columnsConfig == null) {
-			columnsConfig = new JSONObject();
-		}
 
+		JSONObject columnsConfig = AirContext.getColumnsConfig(builder.db(), builder.table());
 
 		for (int i = 0; i < data.size(); i++) {
 
@@ -211,8 +204,7 @@ public class DataRenderer {
 					/*
 					 * 保存每次循环的join表信息, 以便后续做处理, key为关联表及父表组成的字符串, value为关联表数据
 					 */
-					JSONObject joinTableConfig = AirContext.getTableConfig(builder.db(), joinTableName);
-					JSONObject joinColumnsConfig = joinTableConfig.getObject(TableConfig.COLUMNS);
+					JSONObject joinColumnsConfig = AirContext.getColumnsConfig(builder.db(), joinTableName);
 					JSONObject joinColumnConfig = joinColumnsConfig.getObject(joinColumn);
 
 					innerJoinTable.put(joinColumn, render(value, joinColumnConfig));
@@ -292,7 +284,7 @@ public class DataRenderer {
 	 *            所有字段配置
 	 */
 	public void render(Map<String, Object> record, JSONObject columnsConfig) {
-		if (columnsConfig == null)
+		if (columnsConfig == null || columnsConfig.size() == 0)
 			return;
 		record.replaceAll((k, v) -> render(v, columnsConfig.getObject(k)));
 	}

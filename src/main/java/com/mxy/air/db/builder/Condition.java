@@ -112,7 +112,7 @@ public class Condition {
 		 */
 		} else {
 			String aliasPrefix = Strings.isNullOrEmpty(alias) ? "" : alias + ".";
-			String type = AirContext.getTableColumnType(db, table, column);
+			String type = AirContext.getColumnType(db, table, column);
 			switch (operator) {
 			case EQUAL:
 				conditionBuilder.append(aliasPrefix).append(column).append(" = ?");

@@ -47,12 +47,20 @@ public class AirContext {
 		return config;
 	}
 
-	public static JSONObject getAllTableConfig() {
+	public static JSONObject getDbsConfig() {
 		return config.getObject(DatacolorConfig.DB_TABLE_CONFIG);
 	}
 
-	public static JSONObject getAllTableConfig(String db) {
-		return config.getObject(DatacolorConfig.DB_TABLE_CONFIG).getObject(db);
+	public static JSONObject getDbConfig(String db) {
+		JSONObject dbsConfig = getDbsConfig();
+		if (dbsConfig == null) {
+			return new JSONObject();
+		}
+		JSONObject dbConfig = dbsConfig.getObject(db);
+		if (dbConfig == null) {
+			return new JSONObject();
+		}
+		return dbConfig;
 	}
 
 	public static JSONObject getTableConfig(String table) {
@@ -60,28 +68,33 @@ public class AirContext {
 	}
 
 	public static JSONObject getTableConfig(String db, String table) {
-		return getAllTableConfig(db).getObject(table);
+		JSONObject tableConfig = getDbConfig(db).getObject(table);
+		if (tableConfig == null) {
+			return new JSONObject();
+		}
+		return tableConfig;
 	}
 
-	public static JSONObject getAllTableColumnConfig(String table) {
-		return getAllTableConfig(getDefaultDb()).getObject(table).getObject(TableConfig.COLUMNS);
+	public static JSONObject getColumnsConfig(String table) {
+		return getColumnsConfig(getDefaultDb(), table);
 	}
 
-	public static JSONObject getAllTableColumnConfig(String db, String table) {
-		return getAllTableConfig(db).getObject(table).getObject(TableConfig.COLUMNS);
+	public static JSONObject getColumnsConfig(String db, String table) {
+		JSONObject tableConfig = getTableConfig(db, table);
+		JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
+		if (columnsConfig == null) {
+			return new JSONObject();
+		}
+		return columnsConfig;
 	}
 
-	public static String getTableColumnType(String db, String table, String column) {
-		JSONObject tableColumnConfigs = getAllTableColumnConfig(db, table);
-		if (tableColumnConfigs == null) {
+	public static String getColumnType(String db, String table, String column) {
+		JSONObject columnsConfig = getColumnsConfig(db, table);
+		JSONObject columnConfig = columnsConfig.getObject(column);
+		if (columnConfig == null) {
 			return null;
 		} else {
-			JSONObject columnConfig = tableColumnConfigs.getObject(column);
-			if (columnConfig == null) {
-				return null;
-			} else {
-				return columnConfig.getString(Column.TYPE);
-			}
+			return columnConfig.getString(Column.TYPE);
 		}
 	}
 
@@ -196,7 +209,7 @@ public class AirContext {
 	}
 
 	public static void addDbTableConfig(String db, JSONObject dbTableConfig) {
-		getAllTableConfig().put(db, dbTableConfig);
+		getDbsConfig().put(db, dbTableConfig);
 	}
 
 	/**
@@ -214,10 +227,10 @@ public class AirContext {
 		if (getDialect(db) instanceof ElasticsearchDialect) {
 			return;
 		}
-		if (!getAllTableConfig().containsKey(db)) {
+		if (!getDbsConfig().containsKey(db)) {
 			throw new DbException(String.format("数据源 [%s] 不存在", db));
 		}
-		if (!getAllTableConfig(db).containsKey(table)) {
+		if (!getDbConfig(db).containsKey(table)) {
 			throw new DbException(String.format("数据库表 [%s] 不存在", table));
 		}
 	}

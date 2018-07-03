@@ -3,9 +3,7 @@ package com.mxy.air.db.builder;
 import java.util.Map;
 
 import com.mxy.air.db.AirContext;
-import com.mxy.air.db.DbException;
 import com.mxy.air.db.SQLBuilder;
-import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -26,11 +24,7 @@ public class Insert extends SQLBuilder {
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
 		// 配置
-		JSONObject tableConfig = AirContext.getTableConfig(db, table);
-		if (tableConfig == null) {
-			throw new DbException(String.format("数据库表[%s]不存在", table));
-		}
-		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
+		JSONObject columnsConfig = AirContext.getColumnsConfig(db, table);
 		StringBuilder builder = new StringBuilder();
 		builder.append("insert into ").append(table);
 		StringBuilder columnBuilder = new StringBuilder();
@@ -42,7 +36,7 @@ public class Insert extends SQLBuilder {
 			String column = entry.getKey();
 			Object value = entry.getValue();
 			// 如果字段不是数据库表中的字段, 就跳过
-			if (!columnConfigs.containsKey(column)) {
+			if (!columnsConfig.containsKey(column)) {
 				continue;
 			}
 			if (comma) {

@@ -50,9 +50,8 @@ public class Select extends SQLBuilder {
 		if (db == null)
 			db = AirContext.getDefaultDb();
 		dialect = AirContext.getDialect(db);
-		JSONObject tableConfigs = AirContext.getAllTableConfig(db);
 		// 主表的配置
-		JSONObject tableConfig = tableConfigs.getObject(table);
+		JSONObject tableConfig = AirContext.getTableConfig(db, table);
 		/*
 		 * 设置空对象, 防止后面调用的时候报空指针错误
 		 */
@@ -120,9 +119,8 @@ public class Select extends SQLBuilder {
 							.append(".").append(join.getTargetColumn());
 
 					// join表的配置
-					JSONObject joinTableConfig = tableConfigs.getObject(join.getTargetTable());
-					JSONObject joinColumnConfigs = joinTableConfig.getObject(TableConfig.COLUMNS);
-					for (String joinColumn : joinColumnConfigs.keySet()) {
+					JSONObject joinColumnsConfig = AirContext.getColumnsConfig(db, join.getTargetTable());
+					for (String joinColumn : joinColumnsConfig.keySet()) {
 						if (join.getTable().equals(table)) {
 							columnBuilder.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
 									.append(" ").append("'").append(join.getTargetTable()).append(".")
@@ -182,8 +180,7 @@ public class Select extends SQLBuilder {
 							.append(".").append(join.getColumn()).append(" = ").append(join.getTargetAlias())
 							.append(".").append(join.getTargetColumn());
 					// join表的配置
-					JSONObject joinTableConfig = tableConfigs.getObject(join.getTargetTable());
-					JSONObject joinColumnConfigs = joinTableConfig.getObject(TableConfig.COLUMNS);
+					JSONObject joinColumnsConfig = AirContext.getColumnsConfig(db, join.getTargetTable());
 					// 查询字段是否已经指定了关联表的字段，如果已经指定，则什么都不做，如果没有指定，则查询所有关联表字段
 					boolean specialColumn = false;
 					List<String> removeJoinColumns = new ArrayList<>();
@@ -204,7 +201,7 @@ public class Select extends SQLBuilder {
 								columnName = column.split(" ")[0];
 							}
 							// 如果主表不包含该字段，并且关联表包含该字段，则代表用户指定了关联表的字段
-							if (joinColumnConfigs.containsKey(columnName)) {
+							if (joinColumnsConfig.containsKey(columnName)) {
 								specialColumn = true;
 								columnBuilder.append(",").append(join.getTargetAlias()).append(".").append(column)
 										.append(" ").append("'").append(join.getTargetTable()).append(".")
@@ -218,7 +215,7 @@ public class Select extends SQLBuilder {
 					remainColumns.removeAll(removeJoinColumns);
 					// 未指定关联表字段，则查询所有关联表字段
 					if (!specialColumn) {
-						for (String joinColumn : joinColumnConfigs.keySet()) {
+						for (String joinColumn : joinColumnsConfig.keySet()) {
 							if (!Strings.isNullOrEmpty(columnBuilder.toString())) {
 								columnBuilder.append(",");
 							}

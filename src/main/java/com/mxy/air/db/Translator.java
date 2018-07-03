@@ -33,6 +33,8 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.ElasticSearchDruidDataSourceFactory;
@@ -67,6 +69,8 @@ import com.opencsv.ICSVWriter;
  *
  */
 public class Translator {
+
+	private static final Logger logger = LoggerFactory.getLogger(Translator.class);
 
 	public static final String DEFAULT_CONFIG_FILE = "xiaolongnv.json";
 
@@ -229,9 +233,8 @@ public class Translator {
 		JSONObject dbsConfig = AirContext.getConfig().getObject(DatacolorConfig.DATASOURCES);
 		Set<String> dbs = dbsConfig.keySet();
 		for (String db : dbs) {
-			JSONObject dbTableConfig = AirContext.getAllTableConfig(db);
-			if (dbTableConfig == null) {
-				dbTableConfig = new JSONObject();
+			JSONObject dbTableConfig = AirContext.getDbConfig(db);
+			if (dbTableConfig.size() == 0) {
 				AirContext.addDbTableConfig(db, dbTableConfig);
 			}
 			Dialect dialect = AirContext.getDialect(db);
@@ -336,7 +339,8 @@ public class Translator {
 				}
 			}
 		} catch (IOException e) {
-			throw new DbException("读取ES索引mapping失败", e);
+			logger.error(String.format("读取ES索引mapping失败[%s, %d]", ip, httpPort), e);
+			//			throw new DbException("读取ES索引mapping失败", e);
 		} finally {
 			try {
 				client.close();
@@ -574,7 +578,7 @@ public class Translator {
 						// header.addAll(buildHeader((JSONObject) value, db, column));
 					} else {
 						columnHeader.add(column);
-						JSONObject columnConfig = AirContext.getAllTableColumnConfig(db, table).getObject(column);
+						JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
 						String columnDisplay = Strings.nullToEmpty(columnConfig.getString(TableConfig.Column.DISPLAY));
 						if (columnConfig.containsKey(TableConfig.Column.CODE)) {
 							JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
@@ -621,7 +625,7 @@ public class Translator {
 			} else if (value instanceof JSONObject) { // 关联对象的情况暂不处理
 				// csvRecord.addAll(buildRecord((JSONObject) value));
 			} else {
-				JSONObject columnConfig = AirContext.getAllTableColumnConfig(db, table).getObject(column);
+				JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
 				if (columnConfig.containsKey(TableConfig.Column.CODE)) {
 					JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
 					csvRecord.add(columnCode.get(value.toString()).toString());

@@ -69,17 +69,8 @@ public class SQLHandler {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
-		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
-		if (tableConfig == null) {
-			return new JSONObject(detail);
-		} else {
-			JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
-			if (columnsConfig == null) {
-				return new JSONObject(detail);
-			} else {
-				renderer.render(detail, columnsConfig);
-			}
-		}
+		JSONObject columnsConfig = AirContext.getColumnsConfig(builder.db(), builder.table());
+		renderer.render(detail, columnsConfig);
 		return new JSONObject(detail);
 	}
 

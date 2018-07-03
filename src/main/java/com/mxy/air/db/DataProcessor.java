@@ -35,7 +35,7 @@ public class DataProcessor {
 	 */
 	public void process(SQLBuilder builder)
 			throws SQLException {
-		JSONObject columnConfigs = AirContext.getAllTableColumnConfig(builder.db(), builder.table());
+		JSONObject columnConfigs = AirContext.getColumnsConfig(builder.db(), builder.table());
 		// 原始值
 		Map<String, Object> values = builder.values();
 		// 经过处理的值, 初始为原始值

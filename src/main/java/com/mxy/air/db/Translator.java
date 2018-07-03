@@ -22,10 +22,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.sql.DataSource;
+
+import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.ElasticSearchDruidDataSourceFactory;
@@ -40,6 +47,7 @@ import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.DatacolorConfig.Datasource;
+import com.mxy.air.db.config.DatacolorConfig.Es;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.interceptors.SQLLogInterceptor;
@@ -221,61 +229,119 @@ public class Translator {
 		JSONObject dbsConfig = AirContext.getConfig().getObject(DatacolorConfig.DATASOURCES);
 		Set<String> dbs = dbsConfig.keySet();
 		for (String db : dbs) {
-			Dialect dialect = AirContext.getDialect(db);
-			// 跳过ES数据源
-			if (dialect instanceof ElasticsearchDialect) {
-				break;
-			}
 			JSONObject dbTableConfig = AirContext.getAllTableConfig(db);
 			if (dbTableConfig == null) {
 				dbTableConfig = new JSONObject();
 				AirContext.addDbTableConfig(db, dbTableConfig);
 			}
-			SQLSession sqlSession = AirContext.getSqlSession(db);
-			String realDbName = sqlSession.getDbName();
-			String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_key, c.extra, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
-			List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName });
-			for (Map<String, Object> tableInfo : tableInfos) {
-				String tableName = tableInfo.get("table_name").toString();
-				String tableComment = tableInfo.get("table_comment").toString();
-				String column = tableInfo.get("column_name").toString();
-				String dataType = tableInfo.get("data_type").toString();
-				String columnKey = tableInfo.get("column_key").toString();
-				//				String extra = tableInfo.get("extra").toString();
-				String columnComment = tableInfo.get("column_comment").toString();
-				// 获取数据库表配置
-				JSONObject tableConfig = null;
-				if (dbTableConfig.containsKey(tableName)) {
-					tableConfig = dbTableConfig.getObject(tableName);
-				} else {
-					tableConfig = new JSONObject();
-					dbTableConfig.put(tableName, tableConfig);
+			Dialect dialect = AirContext.getDialect(db);
+
+			if (dialect instanceof ElasticsearchDialect) { // ES数据源
+				initESTableInfo(db, dbTableConfig);
+				break;
+			} else { // 传统数据源
+				initRMDBTableInfo(db, dbTableConfig);
+			}
+
+		}
+	}
+
+	/**
+	 * 初始化传统数据源数据表信息
+	 * @param db
+	 * @param dbTableConfig
+	 * @throws SQLException
+	 */
+	private void initRMDBTableInfo(String db, JSONObject dbTableConfig) throws SQLException {
+		SQLSession sqlSession = AirContext.getSqlSession(db);
+		String realDbName = sqlSession.getDbName();
+		String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_key, c.extra, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
+		List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName });
+		for (Map<String, Object> tableInfo : tableInfos) {
+			String tableName = tableInfo.get("table_name").toString();
+			String tableComment = tableInfo.get("table_comment").toString();
+			String column = tableInfo.get("column_name").toString();
+			String dataType = tableInfo.get("data_type").toString();
+			String columnKey = tableInfo.get("column_key").toString();
+			//				String extra = tableInfo.get("extra").toString();
+			String columnComment = tableInfo.get("column_comment").toString();
+			// 获取数据库表配置
+			JSONObject tableConfig = null;
+			if (dbTableConfig.containsKey(tableName)) {
+				tableConfig = dbTableConfig.getObject(tableName);
+			} else {
+				tableConfig = new JSONObject();
+				dbTableConfig.put(tableName, tableConfig);
+			}
+			// 主键
+			if (columnKey.equals("PRI")) {
+				tableConfig.put(TableConfig.PRIMARY_KEY, column);
+			}
+			// 数据库表注释
+			tableConfig.put(TableConfig.COMMENT, tableComment);
+			// 获取所有列配置
+			JSONObject columns = null;
+			if (tableConfig.containsKey(TableConfig.COLUMNS)) {
+				columns = tableConfig.getObject(TableConfig.COLUMNS);
+			} else {
+				columns = new JSONObject();
+				tableConfig.put(TableConfig.COLUMNS, columns);
+			}
+			// 获取列配置
+			JSONObject columnConfig = null;
+			if (columns.containsKey(column)) {
+				columnConfig = columns.getObject(column);
+			} else {
+				columnConfig = new JSONObject();
+				columns.put(column, columnConfig);
+			}
+			// 更新列配置
+			columnConfig.put(Column.TYPE, dataType);
+			columnConfig.put(Column.COMMENT, columnComment);
+		}
+	}
+
+	private void initESTableInfo(String db, JSONObject dbTableConfig) {
+		JSONObject dbConfig = AirContext.getDataSource(db);
+		String url = dbConfig.getString(Datasource.URL);
+		String pattern = "\\d{1,3}(?:\\.\\d{1,3}){3}(?::\\d{1,5})?";
+		Pattern compiledPattern = Pattern.compile(pattern);
+		Matcher matcher = compiledPattern.matcher(url);
+		String ip = null;
+		int port = 0;
+		while (matcher.find()) {
+			String[] ipPort = matcher.group().split(":");
+			ip = ipPort[0];
+			port = Integer.parseInt(ipPort[1]);
+
+		}
+		if (ip == null || port == 0) {
+			throw new DbException(String.format("Elasticsearch url 解析失败[%s]", url));
+		}
+		int httpPort = dbConfig.containsKey(Es.HTTPPORT) ? dbConfig.getInt(Es.HTTPPORT) : 9200;
+		RestClient client = RestClient.builder(new HttpHost(ip, httpPort, "http")).build();
+		try {
+			// 查询所有索引的mapping
+			Response response = client.performRequest("GET", "/_all/_mapping");
+			String responseBody = EntityUtils.toString(response.getEntity());
+			JSONObject allMappings = new JSONObject(responseBody);
+			for (String index : allMappings.keySet()) {
+				JSONObject indexConfig = new JSONObject();
+				dbTableConfig.put(index, indexConfig);
+				JSONObject indexObject = allMappings.getObject(index);
+				JSONObject mappings = indexObject.getObject("mappings");
+				if (mappings.size() > 0) {
+					JSONObject type = (JSONObject) mappings.entrySet().iterator().next().getValue();
+					indexConfig.put(TableConfig.COLUMNS, type.getObject("properties"));
 				}
-				// 主键
-				if (columnKey.equals("PRI")) {
-					tableConfig.put(TableConfig.PRIMARY_KEY, column);
-				}
-				// 数据库表注释
-				tableConfig.put(TableConfig.COMMENT, tableComment);
-				// 获取所有列配置
-				JSONObject columns = null;
-				if (tableConfig.containsKey(TableConfig.COLUMNS)) {
-					columns = tableConfig.getObject(TableConfig.COLUMNS);
-				} else {
-					columns = new JSONObject();
-					tableConfig.put(TableConfig.COLUMNS, columns);
-				}
-				// 获取列配置
-				JSONObject columnConfig = null;
-				if (columns.containsKey(column)) {
-					columnConfig = columns.getObject(column);
-				} else {
-					columnConfig = new JSONObject();
-					columns.put(column, columnConfig);
-				}
-				// 更新列配置
-				columnConfig.put(Column.TYPE, dataType);
-				columnConfig.put(Column.COMMENT, columnComment);
+			}
+		} catch (IOException e) {
+			throw new DbException("读取ES索引mapping失败", e);
+		} finally {
+			try {
+				client.close();
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 		}
 	}
@@ -615,39 +681,38 @@ public class Translator {
 					: DEFAULT_DATASOURCE_POOL;
 			// 删除TYPE属性, datasource转换成DataSource. TYPE只是air-db的标识, 不是DataSource的属性值
 			dsJSONOjbect.remove(DatacolorConfig.Datasource.TYPE);
-			JSONObject dataSource = new JSONObject();
-			dataSource.put(Datasource.TYPE, type);
-			if (dsJSONOjbect.containsKey("url")) {
-				String url = dsJSONOjbect.getString("url");
-				Dialect dialect = DialectFactory.getDialect(url);
-				dataSource.put(Datasource.DIALECT, dialect);
-				if (dialect instanceof ElasticsearchDialect) {
-					Properties properties = new Properties();
-					for (Map.Entry<String, Object> dsEntry : dsJSONOjbect.entrySet()) {
-						properties.put(dsEntry.getKey(), dsEntry.getValue());
+			JSONObject dataSourceConfig = new JSONObject();
+			dataSourceConfig.put(Datasource.TYPE, type);
+			String url = dsJSONOjbect.getString("url");
+			Dialect dialect = DialectFactory.getDialect(url);
+			dataSourceConfig.put(Datasource.DIALECT, dialect);
+			DataSource dataSource = null;
+			if (dialect instanceof ElasticsearchDialect) {
+				Properties properties = new Properties();
+				for (Map.Entry<String, Object> dsEntry : dsJSONOjbect.entrySet()) {
+					if (dsEntry.getKey().equalsIgnoreCase(Es.HTTPPORT.toString())) {
+						dataSourceConfig.put(Es.HTTPPORT, dsEntry.getValue());
+						continue;
 					}
-					try {
-						DruidDataSource dds = (DruidDataSource) ElasticSearchDruidDataSourceFactory
-								.createDataSource(properties);
-						dataSource.put(Datasource.SOURCE, dds);
-						dataSources.put(dbName, dataSource);
-						break;
-					} catch (Exception e) {
-						throw new DbException(e);
-					}
+					properties.put(dsEntry.getKey(), dsEntry.getValue());
 				}
+				try {
+					dataSource = ElasticSearchDruidDataSourceFactory.createDataSource(properties);
+				} catch (Exception e) {
+					throw new DbException(e);
+				}
+			} else {
+				Class<?> clazz = null;
+				try {
+					clazz = Class.forName(type);
+				} catch (ClassNotFoundException e) {
+					throw new DbException(e);
+				}
+				dataSource = (DataSource) dsJSONOjbect.toBean(clazz);
 			}
-
-			Class<?> clazz = null;
-			try {
-				clazz = Class.forName(type);
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-			DataSource ds = (DataSource) dsJSONOjbect.toBean(clazz);
-			dataSource.put(Datasource.SOURCE, ds);
-			dataSource.put(Datasource.DIALECT, DialectFactory.getDialect(ds));
-			dataSources.put(dbName, dataSource);
+			dataSourceConfig.put(Datasource.SOURCE, dataSource);
+			dataSourceConfig.put(Datasource.URL, url);
+			dataSources.put(dbName, dataSourceConfig);
 		}
 		return dataSources;
 	}

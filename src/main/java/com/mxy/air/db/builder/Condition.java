@@ -181,12 +181,15 @@ public class Condition {
 	 * @return
 	 */
 	private Object wrap(Object value, String type) {
-		if (type.equals("varchar")) {
+		if (Strings.isNullOrEmpty(type)) {
+			return value;
+		} else if (type.equals("varchar")) {
 			return value.toString();
 		} else if (type.equals("int")) {
 			return Integer.parseInt(value.toString());
+		} else {
+			return value;
 		}
-		return value;
 	}
 
 	public String getDb() {

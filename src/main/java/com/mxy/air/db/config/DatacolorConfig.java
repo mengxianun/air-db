@@ -104,8 +104,17 @@ public enum DatacolorConfig {
 		/**
 		 * 数据源
 		 */
-		SOURCE;
+		SOURCE,
+
+		/*
+		 * URL
+		 */
+		URL;
 		
+	}
+
+	public enum Es {
+		HTTPPORT
 	}
 
 }

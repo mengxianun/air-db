@@ -75,8 +75,14 @@ public class AirContext {
 		JSONObject tableColumnConfigs = getAllTableColumnConfig(db, table);
 		if (tableColumnConfigs == null) {
 			return null;
+		} else {
+			JSONObject columnConfig = tableColumnConfigs.getObject(column);
+			if (columnConfig == null) {
+				return null;
+			} else {
+				return columnConfig.getString(Column.TYPE);
+			}
 		}
-		return tableColumnConfigs.getObject(column).getString(Column.TYPE);
 	}
 
 	/**

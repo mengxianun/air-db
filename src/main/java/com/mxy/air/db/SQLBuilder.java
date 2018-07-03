@@ -72,6 +72,19 @@ public abstract class SQLBuilder {
 	// 方言
 	protected Dialect dialect;
 
+	/*
+	 * 拼接后的字符串
+	 */
+	protected String columnString;
+
+	protected String tableString;
+
+	protected String whereString;
+
+	protected String groupString;
+
+	protected String orderString;
+
 	public static Select select(String table) {
 		return new Select(table);
 	}
@@ -99,13 +112,29 @@ public abstract class SQLBuilder {
 		/*
 		 * 初始清空构建数据, 防止再次构建时有脏数据
 		 */
-		sql = null;
-		params.clear();
-		conditions.forEach(c -> c.getValues().clear());
+		clear();
 		return toBuild();
 	}
 
+	/**
+	 * 清空数据
+	 */
+	protected void clear() {
+		sql = null;
+		params.clear();
+		conditions.forEach(c -> c.getValues().clear());
+		columnString = null;
+		tableString = null;
+		whereString = null;
+		groupString = null;
+		orderString = null;
+	}
+
 	protected abstract SQLBuilder toBuild();
+
+	protected SQLBuilder nativeSQL() {
+		return this;
+	};
 
 	public StatementType geStatementType() {
 		return statementType;
@@ -129,6 +158,22 @@ public abstract class SQLBuilder {
 				condition.getValues().forEach(params::add);
 				first = false;
 			}
+		}
+		return builder.toString();
+	}
+
+	protected String buildGroup() {
+		StringBuilder builder = new StringBuilder();
+		if (!isEmpty(groups)) {
+			builder.append(" group by ").append(String.join(",", groups));
+		}
+		return builder.toString();
+	}
+
+	protected String buildOrder() {
+		StringBuilder builder = new StringBuilder();
+		if (!isEmpty(orders)) {
+			builder.append(" order by ").append(String.join(",", orders));
 		}
 		return builder.toString();
 	}

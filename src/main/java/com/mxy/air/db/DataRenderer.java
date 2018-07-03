@@ -62,7 +62,13 @@ public class DataRenderer {
 		 */
 		JSONObject uniqueRecordTableData = new JSONObject();
 		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
+		if (tableConfig == null) {
+			tableConfig = new JSONObject();
+		}
 		JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
+		if (columnsConfig == null) {
+			columnsConfig = new JSONObject();
+		}
 
 
 		for (int i = 0; i < data.size(); i++) {

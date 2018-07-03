@@ -34,6 +34,11 @@ public class SQLHandler {
 		SQLBuilder builder = engine.getBuilder();
 		// 构建SQL语句
 		builder.build();
+		/////// ES 生成原生SQL
+		if (AirContext.isElasticsearch(builder.db())) {
+			builder.nativeSQL();
+		}
+		/////////////////////
 		switch (type) {
 		case DETAIL:
 			return detail(builder);
@@ -62,11 +67,19 @@ public class SQLHandler {
 	 */
 	public Object detail(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
-		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
-		JSONObject columnsConfig = tableConfig != null ? tableConfig.getObject(TableConfig.COLUMNS) : null;
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
-		renderer.render(detail, columnsConfig);
+		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
+		if (tableConfig == null) {
+			return new JSONObject(detail);
+		} else {
+			JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
+			if (columnsConfig == null) {
+				return new JSONObject(detail);
+			} else {
+				renderer.render(detail, columnsConfig);
+			}
+		}
 		return new JSONObject(detail);
 	}
 
@@ -113,15 +126,11 @@ public class SQLHandler {
 		Object key = sqlSession.insert(builder.sql(), builder.params().toArray());
 		// 方法返回值, 多个数据库生成的id组成的数组, 包括关联表id
 		JSONObject result = new JSONObject(builder.values());
-		if (key != null) { // SQL操作返回主键为空, 则返回请求数据中的主键值
-			/*
-			 * 返回插入的主键, 待解决
-			 */
-			//			String keyColumn = tableConfig.containsKey(TableConfig.PRIMARY_KEY)
-			//					? tableConfig.getString(TableConfig.PRIMARY_KEY)
-			//					: TableConfig.PRIMARY_KEY.toString();
-			//			result.put(keyColumn, key);
-		}
+		// 返回插入的主键
+		String primaryKey = tableConfig.containsKey(TableConfig.PRIMARY_KEY)
+				? tableConfig.getString(TableConfig.PRIMARY_KEY)
+				: TableConfig.PRIMARY_KEY.toString();
+		result.put(primaryKey, key);
 		return result;
 	}
 

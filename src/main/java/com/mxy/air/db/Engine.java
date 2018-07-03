@@ -43,6 +43,7 @@ import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Native;
+import com.mxy.air.db.builder.es.EsSelect;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Association;
@@ -210,6 +211,9 @@ public class Engine {
 		if (object.containsKey(LIMIT)) {
 			Object[] limitArray = object.getArray(LIMIT).array();
 			limit = Arrays.stream(limitArray).mapToLong(i -> Long.parseLong(i.toString())).toArray();
+		}
+		if (AirContext.isElasticsearch(db)) {
+			return new EsSelect(table, alias, joins, fields, conditions, groups, orders, limit);
 		}
 		return SQLBuilder.select(table, alias, joins, fields, conditions, groups, orders, limit);
 	}

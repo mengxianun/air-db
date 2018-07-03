@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.jdbc.JdbcRunner;
+import com.mxy.air.db.jdbc.ResultSetHandler;
+import com.mxy.air.db.jdbc.handlers.EsObjectHandler;
 import com.mxy.air.db.jdbc.handlers.MapHandler;
 import com.mxy.air.db.jdbc.handlers.MapListHandler;
 import com.mxy.air.db.jdbc.handlers.ObjectHandler;
@@ -183,8 +185,11 @@ public class SQLSession {
 
 	@SQLLog
 	public long count(String sql, Object[] params) throws SQLException {
-		Object result = runner.query(getConnection(), isCloseConnection(), sql, new ObjectHandler(), params);
-		long count = Long.parseLong(result.toString());
+		ResultSetHandler<Object> resultSetHandler = AirContext.isElasticsearch() ? new EsObjectHandler()
+				: new ObjectHandler();
+		Object result = runner.query(getConnection(), isCloseConnection(), sql, resultSetHandler, params);
+		//		long count = Long.parseLong(result.toString());
+		long count = (long) Double.parseDouble(result.toString());
 		return count;
 	}
 

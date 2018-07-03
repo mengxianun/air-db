@@ -16,9 +16,9 @@ import com.mxy.air.json.JSONObject;
 
 public class Select extends SQLBuilder {
 
-	private String countSql;
+	protected String countSql;
 
-	private List<Object> whereParams = new ArrayList<>();
+	protected List<Object> whereParams = new ArrayList<>();
 
 	public Select() {
 		statementType = StatementType.SELECT;
@@ -53,11 +53,20 @@ public class Select extends SQLBuilder {
 		JSONObject tableConfigs = AirContext.getAllTableConfig(db);
 		// 主表的配置
 		JSONObject tableConfig = tableConfigs.getObject(table);
+		/*
+		 * 设置空对象, 防止后面调用的时候报空指针错误
+		 */
+		if (tableConfig == null) {
+			tableConfig = new JSONObject();
+		}
 		JSONObject columnConfigs = tableConfig.getObject(TableConfig.COLUMNS);
+		if (columnConfigs == null) {
+			columnConfigs = new JSONObject();
+		}
 		// SQL字符串
     	StringBuilder builder = new StringBuilder();
 		// 表字符串
-		StringBuilder tableString = new StringBuilder();
+		StringBuilder tableBuilder = new StringBuilder();
 		/*
 		 * 在存在一对多或多对多并且分页查询的情况下, 将基础表数据库作为子查询, 以保证分页的准确性
 		 */
@@ -82,30 +91,30 @@ public class Select extends SQLBuilder {
 			Select primarySelect = new Select(table, null, Collections.emptyList(), null, primaryTableConditions, null,
 					null, limit);
 			primarySelect.build();
-			tableString.append(" from (").append(primarySelect.sql()).append(") ").append(alias);
+			tableBuilder.append(" from (").append(primarySelect.sql()).append(") ").append(alias);
 			countSql = primarySelect.getCountSql();
 			whereParams = primarySelect.getWhereParams();
 			params.addAll(primarySelect.params());
 		} else {
-			tableString.append(" from ").append(table).append(" ").append(alias);
+			tableBuilder.append(" from ").append(table).append(" ").append(alias);
 		}
 		// 列字符串
-		StringBuilder columnString = new StringBuilder();
+		StringBuilder columnBuilder = new StringBuilder();
 		// 拼接表字符串, 列字符串
 		if (columns == null) { // 如果未指定列，则查询所有字段，所有字段信息从配置中获取
 			columns = columnConfigs.keySet().toArray(new String[] {});
 			// 主表的列
 			for (String column : columns) {
-				columnString.append(aliasPrefix).append(column).append(",");
+				columnBuilder.append(aliasPrefix).append(column).append(",");
 			}
 			// 去掉最后的','分隔符
-			if (columnString.toString().endsWith(",")) {
-				columnString.deleteCharAt(columnString.length() - 1);
+			if (columnBuilder.toString().endsWith(",")) {
+				columnBuilder.deleteCharAt(columnBuilder.length() - 1);
 			}
 			if (!isEmpty(joins)) { // 存在关联表查询
 				for (Join join : joins) {
 					// 拼接table字符串
-					tableString.append(" ").append(join.getJoinType().text()).append(" ").append(join.getTargetTable())
+					tableBuilder.append(" ").append(join.getJoinType().text()).append(" ").append(join.getTargetTable())
 							.append(" ").append(join.getTargetAlias()).append(" on ").append(join.getAlias())
 							.append(".").append(join.getColumn()).append(" = ").append(join.getTargetAlias())
 							.append(".").append(join.getTargetColumn());
@@ -115,11 +124,11 @@ public class Select extends SQLBuilder {
 					JSONObject joinColumnConfigs = joinTableConfig.getObject(TableConfig.COLUMNS);
 					for (String joinColumn : joinColumnConfigs.keySet()) {
 						if (join.getTable().equals(table)) {
-							columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
+							columnBuilder.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
 									.append(" ").append("'").append(join.getTargetTable()).append(".")
 									.append(joinColumn).append("'");
 						} else {
-							columnString.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
+							columnBuilder.append(",").append(join.getTargetAlias()).append(".").append(joinColumn)
 									.append(" ").append("'").append(join.getTable()).append(".")
 									.append(join.getTargetTable()).append(".").append(joinColumn).append("'");
 						}
@@ -141,7 +150,7 @@ public class Select extends SQLBuilder {
 				if (column.contains(".")) { // 带表别名的字段
 					String[] tableColumn = column.split("\\.");
 					if (tableColumn[0].equals(table)) { // 主表的字段
-						columnString.append(aliasPrefix).append(tableColumn[1]).append(",");
+						columnBuilder.append(aliasPrefix).append(tableColumn[1]).append(",");
 						remainColumns.remove(column); // 删除主表的字段
 					}
 				} else { // 未指定表别名字段
@@ -150,25 +159,25 @@ public class Select extends SQLBuilder {
 						columnName = column.split(" ")[0];
 					}
 					if (columnConfigs.containsKey(columnName)) { // 查询的列在主表的列配置中, 即表示该列是属于主表的列
-						columnString.append(aliasPrefix).append(column).append(","); // 拼接主表字段字符串
+						columnBuilder.append(aliasPrefix).append(column).append(","); // 拼接主表字段字符串
 					} else { // 其他字段字符串, 如方法
 						/*
 						 *   判断查询列是否为函数, 是函数的话直接拼接, 不是的话不拼接
 						 */
-						columnString.append(column).append(",");
+						columnBuilder.append(column).append(",");
 					}
 					remainColumns.remove(column); // 删除字段
 				}
 			}
 			// 去掉最后的','分隔符
-			if (columnString.toString().endsWith(",")) {
-				columnString.deleteCharAt(columnString.length() - 1);
+			if (columnBuilder.toString().endsWith(",")) {
+				columnBuilder.deleteCharAt(columnBuilder.length() - 1);
 			}
 			// 关联表
 			if (!isEmpty(joins)) {
 				for (Join join : joins) {
 					// 拼接table字符串
-					tableString.append(" ").append(join.getJoinType().text()).append(" ").append(join.getTargetTable())
+					tableBuilder.append(" ").append(join.getJoinType().text()).append(" ").append(join.getTargetTable())
 							.append(" ").append(join.getTargetAlias()).append(" on ").append(join.getAlias())
 							.append(".").append(join.getColumn()).append(" = ").append(join.getTargetAlias())
 							.append(".").append(join.getTargetColumn());
@@ -183,7 +192,7 @@ public class Select extends SQLBuilder {
 							String[] tableColumn = column.split("\\.");
 							if (tableColumn[0].equals(join.getTargetTable())) { // 存在关联表的别名，代表已经指定了关联表的字段
 								specialColumn = true;
-								columnString.append(",").append(join.getTargetAlias()).append(".")
+								columnBuilder.append(",").append(join.getTargetAlias()).append(".")
 										.append(tableColumn[1])
 										.append(" ").append("'").append(join.getTargetTable()).append(".")
 										.append(tableColumn[1]).append("'");
@@ -197,7 +206,7 @@ public class Select extends SQLBuilder {
 							// 如果主表不包含该字段，并且关联表包含该字段，则代表用户指定了关联表的字段
 							if (joinColumnConfigs.containsKey(columnName)) {
 								specialColumn = true;
-								columnString.append(",").append(join.getTargetAlias()).append(".").append(column)
+								columnBuilder.append(",").append(join.getTargetAlias()).append(".").append(column)
 										.append(" ").append("'").append(join.getTargetTable()).append(".")
 										.append(columnName).append("'");
 								removeJoinColumns.add(column);
@@ -210,10 +219,10 @@ public class Select extends SQLBuilder {
 					// 未指定关联表字段，则查询所有关联表字段
 					if (!specialColumn) {
 						for (String joinColumn : joinColumnConfigs.keySet()) {
-							if (!Strings.isNullOrEmpty(columnString.toString())) {
-								columnString.append(",");
+							if (!Strings.isNullOrEmpty(columnBuilder.toString())) {
+								columnBuilder.append(",");
 							}
-							columnString.append(join.getTargetAlias()).append(".").append(joinColumn)
+							columnBuilder.append(join.getTargetAlias()).append(".").append(joinColumn)
 									.append(" ").append("'").append(join.getTargetTable()).append(".")
 									.append(joinColumn).append("'");
 						}
@@ -224,25 +233,27 @@ public class Select extends SQLBuilder {
 			 * 处理剩余的既不是主表的字段, 也不是关联表的字段, 如数据库函数
 			 */
 			for (String remainColumn : remainColumns) {
-				if (!Strings.isNullOrEmpty(columnString.toString())) {
-					columnString.append(",");
+				if (!Strings.isNullOrEmpty(columnBuilder.toString())) {
+					columnBuilder.append(",");
 				}
-				columnString.append(remainColumn);
+				columnBuilder.append(remainColumn);
 			}
 		}
 
-		builder.append("select ").append(columnString).append(tableString);
-		// Where
-		builder.append(buildWhere());
-		if (!isEmpty(groups)) {
-			builder.append(" group by ").append(String.join(",", groups));
-		}
-		if (!isEmpty(orders)) {
-			builder.append(" order by ").append(String.join(",", orders));
-		}
+		columnString = columnBuilder.length() > 0 ? columnBuilder.toString() : "*";
+		tableString = tableBuilder.toString();
+		whereString = buildWhere();
+		groupString = buildGroup();
+		orderString = buildOrder();
+		builder.append("select ");
+		builder.append(columnString);
+		builder.append(tableString);
+		builder.append(whereString);
+		builder.append(groupString);
+		builder.append(orderString);
 		sql = builder.toString();
 		if (!isEmpty(limit) && !manyLimit) {
-			countSql = count(sql);
+			countSql = count();
 			whereParams = new ArrayList<>(params);
 			sql = dialect.processLimit(sql);
 			Object[] limitParams = dialect.processLimitParams(new Page(limit[0], limit[1]));
@@ -251,8 +262,13 @@ public class Select extends SQLBuilder {
 		return this;
     }
 
-	public String count(String sql) {
-		return "select count(1) from (" + sql + ") origin_table";
+	public String count() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("select count(1) from (").append("select ").append(columnString)
+				.append(tableString).append(" ").append(whereString)
+				.append(") origin_table");
+		return builder.toString();
+		//		return "select count(1) from (" + sql + ") origin_table";
 	}
 
 	public String getCountSql() {

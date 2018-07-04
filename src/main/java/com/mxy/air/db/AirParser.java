@@ -1,9 +1,9 @@
 package com.mxy.air.db;
 
 import static com.mxy.air.db.Structure.NATIVE;
+import static com.mxy.air.db.Structure.TEMPLATE;
 import static com.mxy.air.db.Structure.Type.DELETE;
 import static com.mxy.air.db.Structure.Type.DETAIL;
-import static com.mxy.air.db.Structure.Type.EXPORT_CSV_TPL;
 import static com.mxy.air.db.Structure.Type.INSERT;
 import static com.mxy.air.db.Structure.Type.QUERY;
 import static com.mxy.air.db.Structure.Type.SELECT;
@@ -14,6 +14,7 @@ import static com.mxy.air.db.Structure.Type.UPDATE;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.mxy.air.db.Structure.Template;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.json.JSONObject;
 
@@ -33,6 +34,8 @@ public class AirParser {
 	private String table;
 
 	private String alias;
+
+	private Template template;
 
 	public AirParser() {}
 
@@ -64,6 +67,9 @@ public class AirParser {
 		}
 		if (db == null) {
 			db = AirContext.getDefaultDb();
+		}
+		if (object.containsKey(TEMPLATE)) {
+			template = Template.from(object.getString(TEMPLATE));
 		}
 	}
 	
@@ -99,9 +105,6 @@ public class AirParser {
 		if (object.containsKey(STRUCT)) {
 			types.add(STRUCT);
 		}
-		if (object.containsKey(EXPORT_CSV_TPL)) {
-			types.add(EXPORT_CSV_TPL);
-		}
 		if (types.size() != 1) { // 操作类型只能是一个
 			throw new DbException("未指定操作类型或指定了多个操作类型");
 		}
@@ -126,6 +129,10 @@ public class AirParser {
 
 	public String getAlias() {
 		return alias;
+	}
+
+	public Template getTemplate() {
+		return template;
 	}
 
 }

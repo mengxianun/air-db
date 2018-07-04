@@ -45,6 +45,7 @@ import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.inject.matcher.Matchers;
 import com.google.inject.name.Names;
+import com.mxy.air.db.Structure.Template;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.config.DatacolorConfig;
@@ -258,8 +259,8 @@ public class Translator {
 	private void initRMDBTableInfo(String db, JSONObject dbTableConfig) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(db);
 		String realDbName = sqlSession.getDbName();
-		String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_key, c.extra, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ?";
-		List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName });
+		String sql = "select t.table_name, t.table_comment, c.column_name, c.data_type, c.column_key, c.extra, c.column_comment from information_schema.tables t left join information_schema.columns c on t.table_name = c.table_name where t.table_schema = ? and c.table_schema = ?";
+		List<Map<String, Object>> tableInfos = sqlSession.list(sql, new String[] { realDbName, realDbName });
 		for (Map<String, Object> tableInfo : tableInfos) {
 			String tableName = tableInfo.get("table_name").toString();
 			String tableComment = tableInfo.get("table_comment").toString();
@@ -506,7 +507,7 @@ public class Translator {
 		JSONObject jsonObject = parser.getObject();
 		String db = parser.getDb();
 		String table = parser.getTable();
-		if (parser.getType() == Structure.Type.EXPORT_CSV_TPL) { // 导出CSV模板
+		if (parser.getTemplate() != null && parser.getTemplate() == Template.CSV) { // 导出CSV模板
 			JSONObject tableConfig = AirContext.getTableConfig(db, table);
 			String primaryKey = tableConfig.getString(TableConfig.PRIMARY_KEY);
 			JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
@@ -567,39 +568,46 @@ public class Translator {
 				List<String> columnHeader = new ArrayList<>();
 				// CSV头部(列显示名称)
 				List<String> columnHeaderDisplay = new ArrayList<>();
-				/*
-				 * 构建头部数据
-				 */
-				JSONObject firstRecord = (JSONObject) resultList.iterator().next();
-				for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
-					String column = entry.getKey();
-					Object value = entry.getValue();
-					if (value instanceof JSONObject) { // 关联对象的情况暂不处理
-						// header.addAll(buildHeader((JSONObject) value, db, column));
-					} else {
-						columnHeader.add(column);
-						JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
-						String columnDisplay = Strings.nullToEmpty(columnConfig.getString(TableConfig.Column.DISPLAY));
-						if (columnConfig.containsKey(TableConfig.Column.CODE)) {
-							JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
-							StringBuilder builder = new StringBuilder();
-							builder.append(columnDisplay).append("(");
-							String[] codeValues = columnCode.keySet().stream().map(k -> k + ":" + columnCode.get(k))
-									.toArray(String[]::new);
-							builder.append(String.join(",", codeValues));
-							builder.append(")");
-							columnHeaderDisplay.add(builder.toString());
+
+				if (resultList.size() > 0) {
+					/*
+					 * 构建头部数据
+					 */
+					JSONObject firstRecord = (JSONObject) resultList.iterator().next();
+					for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
+						String column = entry.getKey();
+						Object value = entry.getValue();
+						if (value instanceof JSONObject) { // 关联对象的情况暂不处理
+							// header.addAll(buildHeader((JSONObject) value, db, column));
 						} else {
-							columnHeaderDisplay.add(columnDisplay);
+							columnHeader.add(column);
+							JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
+							if (columnConfig == null || columnConfig.size() == 0) {
+								columnHeaderDisplay.add(column);
+							} else {
+								String columnDisplay = Strings
+										.nullToEmpty(columnConfig.getString(TableConfig.Column.DISPLAY));
+								if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+									JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+									StringBuilder builder = new StringBuilder();
+									builder.append(columnDisplay).append("(");
+									String[] codeValues = columnCode.keySet().stream()
+											.map(k -> k + ":" + columnCode.get(k)).toArray(String[]::new);
+									builder.append(String.join(",", codeValues));
+									builder.append(")");
+									columnHeaderDisplay.add(builder.toString());
+								} else {
+									columnHeaderDisplay.add(columnDisplay);
+								}
+							}
 						}
 					}
-				}
-				//					header = buildHeader((JSONObject) resultList.iterator().next(), db, table);
-				// 构建具体数据
-				if (!resultList.isEmpty()) {
-					csvData = resultList.stream()
-							.map(o -> buildRecord((JSONObject) o, db, table).toArray(new String[] {}))
-							.collect(Collectors.toList());
+					// 构建具体数据
+					if (!resultList.isEmpty()) {
+						csvData = resultList.stream()
+								.map(o -> buildRecord((JSONObject) o, db, table).toArray(new String[] {}))
+								.collect(Collectors.toList());
+					}
 				}
 				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 				CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
@@ -626,7 +634,9 @@ public class Translator {
 				// csvRecord.addAll(buildRecord((JSONObject) value));
 			} else {
 				JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
-				if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+				if (columnConfig == null || columnConfig.size() == 0) {
+					csvRecord.add(value.toString());
+				} else if (columnConfig.containsKey(TableConfig.Column.CODE)) {
 					JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
 					csvRecord.add(columnCode.get(value.toString()).toString());
 				} else if (columnConfig.containsKey(TableConfig.Column.FORMAT)) {

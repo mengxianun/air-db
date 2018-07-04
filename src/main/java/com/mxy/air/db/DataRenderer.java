@@ -43,6 +43,14 @@ public class DataRenderer {
 	 *            所有字段配置
 	 */
 	public JSONArray render(List<Map<String, Object>> data, SQLBuilder builder) {
+		/*
+		 * 单表操作时只做简单渲染, 提升性能
+		 */
+		if (builder.joins() == null || builder.joins().isEmpty()) {
+			JSONObject columnsConfig = AirContext.getColumnsConfig(builder.db(), builder.table());
+			data.forEach(d -> render(d, columnsConfig));
+			return new JSONArray(data);
+		}
 		JSONArray result = new JSONArray();
 		/*
 		 * 存储每个主表记录下的join表数据, key为主表每条记录的唯一标识, value为该条记录的join表数据

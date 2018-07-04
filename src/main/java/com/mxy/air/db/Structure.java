@@ -46,7 +46,12 @@ public enum Structure {
 	/*
 	 * 返回结果
 	 */
-	RESULT;
+	RESULT,
+	
+	/*
+	 * 模板
+	 */
+	TEMPLATE;
 	
 	/**
 	 * 操作类型
@@ -85,12 +90,7 @@ public enum Structure {
 		/*
 		 * 数据库表配置结构
 		 */
-		STRUCT,
-
-		/*
-		 * 导出CSV模板
-		 */
-		EXPORT_CSV_TPL;
+		STRUCT;
 		
 		public static Type from(String name) {
 			for (Type type : values()) {
@@ -103,6 +103,24 @@ public enum Structure {
 		}
 	}
 	
+	/**
+	 * 模板
+	 */
+	public enum Template {
+
+		CSV;
+
+		public static Template from(String name) {
+			for (Template template : values()) {
+				// 不区分大小写
+				if (template.toString().equalsIgnoreCase(name)) {
+					return template;
+				}
+			}
+			return null;
+		}
+	}
+
 	/**
 	 * 关联查询
 	 */

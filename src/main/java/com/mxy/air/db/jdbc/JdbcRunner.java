@@ -111,7 +111,8 @@ public class JdbcRunner extends AbstractJdbcRunner {
 			rs = stmt.executeQuery();
 			result = handler.handle(rs);
 		} catch (SQLException e) {
-			throw new SQLException(e.getCause());
+			throw e;
+//			throw new SQLException(e.getCause());
 			//			this.rethrow(e, sql, params);
 		} finally {
 			close(stmt, rs);

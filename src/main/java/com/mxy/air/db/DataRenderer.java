@@ -171,7 +171,7 @@ public class DataRenderer {
 										? currentTableIndexObject.getInt(currentTable)
 										: 0;
 								innerJoinTableArray = innerJoinTable.getArray(currentTable);
-								if (innerJoinTableArray.length() > currentTableIndex) {
+								if (innerJoinTableArray.size() > currentTableIndex) {
 									innerJoinTable = (JSONObject) innerJoinTableArray.get(currentTableIndex);
 								} else {
 									JSONObject joinTableObject = new JSONObject();
@@ -257,8 +257,8 @@ public class DataRenderer {
 							JSONArray innerJoinTableArray = innerJoinTableObject.getArray(currentTable);
 							// 删除该循环刚刚添加的对象, 即最后一个
 							if (k == prefixJoinTables.length - 1) {
-								innerJoinTableArray.remove(innerJoinTableArray.length() - 1);
-								if (innerJoinTableArray.length() == 0) {
+								innerJoinTableArray.remove(innerJoinTableArray.size() - 1);
+								if (innerJoinTableArray.size() == 0) {
 									innerJoinTableObject.remove(currentTable);
 								}
 							}

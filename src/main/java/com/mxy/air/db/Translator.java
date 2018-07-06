@@ -455,6 +455,10 @@ public class Translator {
 	 * @throws SQLException
 	 */
 	public String translate(String json) throws SQLException {
+		return translateToJson(json).toString();
+	}
+
+	public JSON translateToJson(String json) throws SQLException {
 		JSONObject object = new JSONObject(json);
 		if (object.containsKey(Type.STRUCT)) {
 			String table = object.getString(Type.STRUCT);
@@ -465,7 +469,7 @@ public class Translator {
 				table = dbTable[1];
 			}
 			AirContext.check(db, table);
-			return AirContext.getTableConfig(db, table).toString();
+			return AirContext.getTableConfig(db, table);
 		}
 		if (object.containsKey(Type.TRANSACTION)) { // 事务操作
 			String db = null;
@@ -483,14 +487,14 @@ public class Translator {
 				engines.add(transEngine);
 			}
 			AirContext.inState(db);
-			String result = handler.transaction(db, engines).toString();
+			JSONArray result = handler.transaction(db, engines);
 			AirContext.outState();
 			return result;
 		}
 		Engine engine = new Engine(object).parse();
 		String db = engine.getBuilder().db();
 		AirContext.inState(db);
-		String result = handler.handle(engine).toString();
+		JSON result = handler.handle(engine);
 		AirContext.outState();
 		return result;
 	}
@@ -553,12 +557,17 @@ public class Translator {
 		} else if (jsonObject.containsKey(Structure.RESULT)) { // 导出CSV数据
 			String result = jsonObject.getString(Structure.RESULT);
 			if (result.equalsIgnoreCase(Structure.Result.CSV.toString())) {
-				String translateResult = translate(json);
-				List<Object> resultList = null;
+				JSON jsonResult = translateToJson(json);
+				List<Map<String, Object>> resultList = null;
 				if (jsonObject.containsKey(Structure.LIMIT)) { // 分页
-					resultList = new JSONObject(translateResult).getArray(PageResult.ATTRIBUTE.DATA).list();
+					resultList = ((JSONObject) jsonResult).getArray(PageResult.ATTRIBUTE.DATA).toMapList();
 				} else {
-					resultList = new JSONArray(translateResult).list();
+					if (jsonResult instanceof JSONObject) {
+						resultList = new ArrayList<>();
+						resultList.add(((JSONObject) jsonResult).toMap());
+					} else {
+						resultList = ((JSONArray) jsonResult).toMapList();
+					}
 				}
 				/*
 				 * CSV需要的格式数据
@@ -573,7 +582,7 @@ public class Translator {
 					/*
 					 * 构建头部数据
 					 */
-					JSONObject firstRecord = (JSONObject) resultList.iterator().next();
+					Map<String, Object> firstRecord = resultList.iterator().next();
 					for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
 						String column = entry.getKey();
 						Object value = entry.getValue();
@@ -605,7 +614,7 @@ public class Translator {
 					// 构建具体数据
 					if (!resultList.isEmpty()) {
 						csvData = resultList.stream()
-								.map(o -> buildRecord((JSONObject) o, db, table).toArray(new String[] {}))
+								.map(o -> buildRecord(o, db, table).toArray(new String[] {}))
 								.collect(Collectors.toList());
 					}
 				}
@@ -623,9 +632,9 @@ public class Translator {
 		throw new DbException("请求JSON解析失败");
 	}
 
-	private List<String> buildRecord(JSONObject recordObject, String db, String table) {
+	private List<String> buildRecord(Map<String, Object> record, String db, String table) {
 		List<String> csvRecord = new ArrayList<>();
-		for (Map.Entry<String, Object> entry : recordObject.entrySet()) {
+		for (Map.Entry<String, Object> entry : record.entrySet()) {
 			String column = entry.getKey();
 			Object value = entry.getValue();
 			if (value == null) {

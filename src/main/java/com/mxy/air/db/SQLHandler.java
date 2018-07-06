@@ -12,6 +12,7 @@ import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.jdbc.trans.Atom;
+import com.mxy.air.json.JSON;
 import com.mxy.air.json.JSONArray;
 import com.mxy.air.json.JSONObject;
 
@@ -29,7 +30,7 @@ public class SQLHandler {
 	@Inject
 	private DataRenderer renderer;
 
-	public Object handle(Engine engine) throws SQLException {
+	public JSON handle(Engine engine) throws SQLException {
 		Type type = engine.getType();
 		SQLBuilder builder = engine.getBuilder();
 		// 构建SQL语句
@@ -65,7 +66,7 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public Object detail(SQLBuilder builder) throws SQLException {
+	public JSONObject detail(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
 		// 结果渲染
@@ -81,7 +82,7 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public Object query(SQLBuilder builder) throws SQLException {
+	public JSON query(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		List<Map<String, Object>> list = sqlSession.list(builder.sql(), builder.params().toArray());
 		// 结果渲染
@@ -107,7 +108,7 @@ public class SQLHandler {
 	 * @throws SQLException
 	 */
 	// @Transactional
-	public Object insert(SQLBuilder builder) throws SQLException {
+	public JSONObject insert(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		JSONObject tableConfig = AirContext.getTableConfig(builder.db(), builder.table());
 		// 验证并处理请求数据
@@ -133,7 +134,7 @@ public class SQLHandler {
 	 * @throws SQLException
 	 */
 	// @Transactional
-	public Object update(SQLBuilder builder) throws SQLException {
+	public JSONObject update(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		if (AirContext.getConfig().getBoolean(DatacolorConfig.UPSERT)) { // 如果不存在就新增记录
 			// 查询数据库是否存在
@@ -163,7 +164,7 @@ public class SQLHandler {
 	 * @throws SQLException
 	 */
 	// @Transactional
-	public Object delete(SQLBuilder builder) throws SQLException {
+	public JSONObject delete(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		int deleteCount = sqlSession.delete(builder.sql(), builder.params().toArray());
 		return new JSONObject("count", deleteCount);
@@ -176,7 +177,7 @@ public class SQLHandler {
 	 * @return
 	 * @throws SQLException
 	 */
-	public Object transaction(String db, List<Engine> engines) throws SQLException {
+	public JSONArray transaction(String db, List<Engine> engines) throws SQLException {
 		JSONArray result = new JSONArray();
 		// 跨数据库事务暂不支持
 		SQLSession sqlSession = AirContext.getSqlSession(db);

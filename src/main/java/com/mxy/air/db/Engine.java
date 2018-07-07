@@ -18,6 +18,7 @@ import static com.mxy.air.db.Structure.Operator.LT;
 import static com.mxy.air.db.Structure.Operator.LTE;
 import static com.mxy.air.db.Structure.Operator.NOT_EQUAL;
 import static com.mxy.air.db.Structure.Operator.NOT_IN;
+import static com.mxy.air.db.Structure.Operator.NOT_LIKE;
 import static com.mxy.air.db.Structure.Order.MINUS;
 import static com.mxy.air.db.Structure.Order.PLUS;
 import static com.mxy.air.db.Structure.Type.DELETE;
@@ -542,7 +543,9 @@ public class Engine {
 	 * @return
 	 */
 	private Operator parseOperator(String conditionString) {
-		if (conditionString.indexOf(LIKE.op()) > 0) { // like
+		if (conditionString.indexOf(NOT_LIKE.op()) > 0) { // not like
+			return NOT_LIKE;
+		} else if (conditionString.indexOf(LIKE.op()) > 0) { // like
 			return LIKE;
 		} else if (conditionString.indexOf(LTE.op()) > 0) {// 小于等于
 			return LTE;

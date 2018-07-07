@@ -194,6 +194,7 @@ public enum Structure {
 		NOT_IN("", "not in"),
 		BETWEEN("~", "between"),
 		LIKE("%=", "like"),
+		NOT_LIKE("!%=", "not like"),
 		
 		NOT("!", "not"),
 		

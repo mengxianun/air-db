@@ -118,7 +118,7 @@ public class Condition {
 				conditionBuilder.append(aliasPrefix).append(column).append(" = ?");
 				break;
 			case NOT_EQUAL:
-				conditionBuilder.append(aliasPrefix).append(column).append(" != ?");
+				conditionBuilder.append(aliasPrefix).append(column).append(" <> ?");
 				break;
 			case GT:
 				conditionBuilder.append(aliasPrefix).append(column).append(" > ?");
@@ -156,6 +156,9 @@ public class Condition {
 				break;
 			case LIKE:
 				conditionBuilder.append(aliasPrefix).append(column).append(" like ?");
+				break;
+			case NOT_LIKE:
+				conditionBuilder.append(aliasPrefix).append(column).append(" not like ?");
 				break;
 
 			default:

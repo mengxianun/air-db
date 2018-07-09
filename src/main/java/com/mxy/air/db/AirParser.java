@@ -1,6 +1,5 @@
 package com.mxy.air.db;
 
-import static com.mxy.air.db.Structure.NATIVE;
 import static com.mxy.air.db.Structure.TEMPLATE;
 import static com.mxy.air.db.Structure.Type.DELETE;
 import static com.mxy.air.db.Structure.Type.DETAIL;
@@ -45,9 +44,9 @@ public class AirParser {
 
 	public void parse(String json) {
 		object = new JSONObject(json);
-		if (object.containsKey(NATIVE)) {
-			return;
-		}
+		//		if (object.containsKey(NATIVE)) {
+		//			return;
+		//		}
 		// 操作类型
 		parseType();
 		table = object.getString(type).trim();

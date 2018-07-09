@@ -42,6 +42,7 @@ import com.google.common.base.Strings;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.Key;
 import com.google.inject.Singleton;
 import com.google.inject.matcher.Matchers;
 import com.google.inject.name.Names;
@@ -53,6 +54,7 @@ import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.DatacolorConfig.Es;
 import com.mxy.air.db.config.TableConfig;
 import com.mxy.air.db.config.TableConfig.Column;
+import com.mxy.air.db.es.EsHandler;
 import com.mxy.air.db.interceptors.SQLLogInterceptor;
 import com.mxy.air.db.jdbc.Dialect;
 import com.mxy.air.db.jdbc.DialectFactory;
@@ -78,6 +80,8 @@ public class Translator {
 	public static final String DEFAULT_DATASOURCE_POOL = "com.alibaba.druid.pool.DruidDataSource";
 
 	private SQLHandler handler;
+
+	private EsHandler esHandler;
 
 	/**
 	 * 无参构造器, 从默认的配置文件构建SQLTranslator
@@ -188,12 +192,22 @@ public class Translator {
 			@Override
 			protected void configure() {
 				for (String db : dss.keySet()) {
+					JSONObject dataSourceConfig = dss.getObject(db);
+					Dialect dialect = (Dialect) dataSourceConfig.get(Datasource.DIALECT);
+					/*
+					 * ES
+					 */
+					if (dialect instanceof ElasticsearchDialect) {
+						String url = dataSourceConfig.getString(Datasource.URL);
+						List<HttpHost> httpHosts = parseEsHttpHost(url, dataSourceConfig.getInt(Es.HTTPPORT));
+						RestClient client = RestClient.builder(httpHosts.toArray(new HttpHost[] {})).build();
+						bind(RestClient.class).annotatedWith(Names.named(db)).toInstance(client);
+					}
 					/*
 					 * 由于自己创建的(即非Guice创建的实例)Guice绑定后无法进行AOP操作, 
 					 * 所以先绑定SQLSession对象(由Guice创建), 
 					 * 然后再获取Guice创建的每个SQLSession进行数据源设置, 设置数据源的操作在Aircontext.init()方法中执行
 					 */
-					//					bind(SQLSession.class).annotatedWith(Names.named(db)).toInstance(new SQLSession(dataSource));
 					bind(SQLSession.class).annotatedWith(Names.named(db)).to(SQLSession.class).in(Singleton.class);
 				}
 				bind(SQLHandler.class).in(Singleton.class);
@@ -211,10 +225,15 @@ public class Translator {
 				// 全局配置
 				//				bind(JSONObject.class).annotatedWith(Names.named("config")).toInstance(config);
 				//				bind(JSONObject.class).annotatedWith(Names.named("dbTableConfig")).toInstance(dbTableConfig);
+				/*
+				 * ES
+				 */
+				bind(EsHandler.class).in(Singleton.class);
 			}
 
 		});
 		this.handler = injector.getInstance(SQLHandler.class);
+		this.esHandler = injector.getInstance(EsHandler.class);
 		AirContext.init(config, injector);;
 		try {
 			initTableInfo();
@@ -306,24 +325,8 @@ public class Translator {
 	}
 
 	private void initESTableInfo(String db, JSONObject dbTableConfig) {
-		JSONObject dbConfig = AirContext.getDataSource(db);
-		String url = dbConfig.getString(Datasource.URL);
-		String pattern = "\\d{1,3}(?:\\.\\d{1,3}){3}(?::\\d{1,5})?";
-		Pattern compiledPattern = Pattern.compile(pattern);
-		Matcher matcher = compiledPattern.matcher(url);
-		String ip = null;
-		int port = 0;
-		while (matcher.find()) {
-			String[] ipPort = matcher.group().split(":");
-			ip = ipPort[0];
-			port = Integer.parseInt(ipPort[1]);
-
-		}
-		if (ip == null || port == 0) {
-			throw new DbException(String.format("Elasticsearch url 解析失败[%s]", url));
-		}
-		int httpPort = dbConfig.containsKey(Es.HTTPPORT) ? dbConfig.getInt(Es.HTTPPORT) : 9200;
-		RestClient client = RestClient.builder(new HttpHost(ip, httpPort, "http")).build();
+		Injector injector = AirContext.getInjector();
+		RestClient client = injector.getInstance(Key.get(RestClient.class, Names.named(db)));
 		try {
 			// 查询所有索引的mapping
 			Response response = client.performRequest("GET", "/_all/_mapping");
@@ -340,15 +343,23 @@ public class Translator {
 				}
 			}
 		} catch (IOException e) {
-			logger.error(String.format("读取ES索引mapping失败[%s, %d]", ip, httpPort), e);
-			//			throw new DbException("读取ES索引mapping失败", e);
-		} finally {
-			try {
-				client.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			logger.error(String.format("读取ES索引mapping失败 %s"), e);
 		}
+	}
+
+	private List<HttpHost> parseEsHttpHost(String url, int httpPort) {
+		List<HttpHost> httpHosts = new ArrayList<>();
+		String pattern = "\\d{1,3}(?:\\.\\d{1,3}){3}(?::\\d{1,5})?";
+		Pattern compiledPattern = Pattern.compile(pattern);
+		Matcher matcher = compiledPattern.matcher(url);
+		while (matcher.find()) {
+			String[] ipPort = matcher.group().split(":");
+			String ip = ipPort[0];
+			int port = httpPort != 0 ? httpPort : 9200;
+			HttpHost httpHost = new HttpHost(ip, port);
+			httpHosts.add(httpHost);
+		}
+		return httpHosts;
 	}
 
 	/**
@@ -459,7 +470,8 @@ public class Translator {
 	}
 
 	public JSON translateToJson(String json) throws SQLException {
-		JSONObject object = new JSONObject(json);
+		AirParser parser = new AirParser(json);
+		JSONObject object = parser.getObject();
 		if (object.containsKey(Type.STRUCT)) {
 			String table = object.getString(Type.STRUCT);
 			String db = AirContext.getDefaultDb();
@@ -490,6 +502,21 @@ public class Translator {
 			JSONArray result = handler.transaction(db, engines);
 			AirContext.outState();
 			return result;
+		}
+		// 原生查询
+		if (AirContext.isElasticsearch(parser.getDb())) {
+			if (object.containsKey(Structure.NATIVE)) {
+				if (parser.getType() == Type.SELECT || parser.getType() == Type.QUERY) {
+					try {
+						JSON result = esHandler.handle(parser.getDb(), parser.getTable(),
+								object.getObject(Structure.NATIVE));
+						return result;
+					} catch (IOException e) {
+						e.printStackTrace();
+						throw new DbException(e.getMessage());
+					}
+				}
+			}
 		}
 		Engine engine = new Engine(object).parse();
 		String db = engine.getBuilder().db();

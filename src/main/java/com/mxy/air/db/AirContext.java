@@ -47,6 +47,10 @@ public class AirContext {
 		return config;
 	}
 
+	public static Injector getInjector() {
+		return injector;
+	}
+
 	public static JSONObject getDbsConfig() {
 		return config.getObject(DatacolorConfig.DB_TABLE_CONFIG);
 	}

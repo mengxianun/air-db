@@ -30,4 +30,12 @@ public interface Dialect {
 	 */
 	public Object[] processLimitParams(Page page);
 	
+	/**
+	 * 关键字转义符号
+	 * @return
+	 */
+	default String getKeywordSymbol() {
+		return "";
+	}
+
 }

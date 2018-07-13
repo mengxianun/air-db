@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.Strings;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Delete;
@@ -109,6 +110,9 @@ public abstract class SQLBuilder {
     }
     
 	protected SQLBuilder build() {
+		if (Strings.isNullOrEmpty(table)) {
+			return this;
+		}
 		/*
 		 * 初始清空构建数据, 防止再次构建时有脏数据
 		 */

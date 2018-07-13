@@ -19,4 +19,8 @@ public class MySQLDialect implements Dialect {
 		return new Object[] { page.getStart(), page.getPageSize() };
 	}
 	
+	public String getKeywordSymbol() {
+		return "`";
+	}
+
 }

@@ -44,6 +44,10 @@ public enum Structure {
 	 */
 	NATIVE,
 	/*
+	 * 数据源
+	 */
+	SOURCE,
+	/*
 	 * 返回结果
 	 */
 	RESULT,

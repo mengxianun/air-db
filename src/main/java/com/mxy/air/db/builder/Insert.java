@@ -26,7 +26,8 @@ public class Insert extends SQLBuilder {
 		// 配置
 		JSONObject columnsConfig = AirContext.getColumnsConfig(db, table);
 		StringBuilder builder = new StringBuilder();
-		builder.append("insert into ").append(table);
+		builder.append("insert into ").append(dialect.getKeywordSymbol()).append(table)
+				.append(dialect.getKeywordSymbol());
 		StringBuilder columnBuilder = new StringBuilder();
 		StringBuilder valueBuilder = new StringBuilder();
 		boolean comma = false;
@@ -43,7 +44,7 @@ public class Insert extends SQLBuilder {
 				columnBuilder.append(", ");
 				valueBuilder.append(", ");
 			}
-			columnBuilder.append(column);
+			columnBuilder.append(dialect.getKeywordSymbol()).append(column).append(dialect.getKeywordSymbol());
 			valueBuilder.append("?");
 			if (value instanceof JSONObject || value instanceof JSONArray) {
 				value = value.toString();

@@ -42,8 +42,11 @@ import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.builder.Condition;
+import com.mxy.air.db.builder.Delete;
+import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Join;
-import com.mxy.air.db.builder.Native;
+import com.mxy.air.db.builder.Select;
+import com.mxy.air.db.builder.Update;
 import com.mxy.air.db.builder.es.EsSelect;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.TableConfig;
@@ -95,7 +98,28 @@ public class Engine {
 	public Engine parse() {
 		if (object.containsKey(NATIVE)) {
 			if (AirContext.getConfig().getBoolean(DatacolorConfig.NATIVE)) {
-				builder = new Native(object.getString(NATIVE));
+				if (object.containsKey(Structure.SOURCE)) {
+					db = object.getString(Structure.SOURCE);
+				} else {
+					db = AirContext.getDefaultDb();
+				}
+				String sql = object.getString(Structure.NATIVE);
+				sql = sql.trim();
+				if (sql.startsWith("select")) {
+					type = SELECT;
+					builder = new Select();
+				} else if (sql.startsWith("insert")) {
+					type = INSERT;
+					builder = new Insert();
+				} else if (sql.startsWith("update")) {
+					type = UPDATE;
+					builder = new Update();
+				} else if (sql.startsWith("delete")) {
+					type = DELETE;
+					builder = new Delete();
+				}
+				builder.db(db);
+				builder.sql(sql);
 				return this;
 			} else {
 				throw new DbException("属性[" + NATIVE + "]被禁用");
@@ -103,24 +127,8 @@ public class Engine {
 		}
 		// 操作类型
 		parseType();
-		table = object.getString(type).trim();
-		if (table.indexOf(".") != -1) { // 指定了数据源
-			String[] dbTableString = table.split("\\.");
-			db = dbTableString[0];
-			table = dbTableString[1];
-			if (table.indexOf(" ") != -1) {
-				String[] tableAlias = table.split(" ");
-				table = tableAlias[0];
-				alias = tableAlias[1];
-			}
-		} else if (table.indexOf(" ") != -1) {
-			String[] tableAlias = table.split(" ");
-			table = tableAlias[0];
-			alias = tableAlias[1];
-		}
-		if (db == null) {
-			db = AirContext.getDefaultDb();
-		}
+		// 数据源/表/别名
+		parseDbTable();
 		/*
 		 * Elasticsearch 不添加别名
 		 */
@@ -187,6 +195,27 @@ public class Engine {
 			throw new DbException("未指定操作类型或指定了多个操作类型");
 		}
 		type = types.get(0);
+	}
+
+	public void parseDbTable() {
+		table = object.getString(type).trim();
+		if (table.indexOf(".") != -1) { // 指定了数据源
+			String[] dbTableString = table.split("\\.");
+			db = dbTableString[0];
+			table = dbTableString[1];
+			if (table.indexOf(" ") != -1) {
+				String[] tableAlias = table.split(" ");
+				table = tableAlias[0];
+				alias = tableAlias[1];
+			}
+		} else if (table.indexOf(" ") != -1) {
+			String[] tableAlias = table.split(" ");
+			table = tableAlias[0];
+			alias = tableAlias[1];
+		}
+		if (db == null) {
+			db = AirContext.getDefaultDb();
+		}
 	}
 
 	/**
@@ -493,26 +522,10 @@ public class Engine {
 	private Condition parseCondition(String conditionString, Operator connector) {
 		String table = null;
 		String alias = null;
-		Operator operator = parseOperator(conditionString);
-		String[] kv;
-		/*
-		 * 对in和between做特殊处理
-		 */
-		switch (operator) {
-		case IN:
-		case BETWEEN:
-			kv = conditionString.split(EQUAL.op());
-			break;
-		case NOT_IN:
-			kv = conditionString.split(NOT_EQUAL.op());
-			break;
-
-		default:
-			kv = conditionString.split(operator.op());
-			break;
-		}
-		String column = kv[0];
-		Object value = kv[1];
+		Cond cond = parseCond(conditionString);
+		Operator operator = cond.getOperator();
+		String column = cond.getColumn();
+		Object value = cond.getValue();
 		/*
 		 * 判断列所属的表
 		 * 1. column1=1 // 主表的列
@@ -538,45 +551,134 @@ public class Engine {
 
 	/**
 	 * 解析条件运算符
-	 * 
-	 * @param condition
+	 * @param quote
 	 * @return
 	 */
-	private Operator parseOperator(String conditionString) {
-		if (conditionString.indexOf(NOT_LIKE.op()) > 0) { // not like
-			return NOT_LIKE;
-		} else if (conditionString.indexOf(LIKE.op()) > 0) { // like
-			return LIKE;
-		} else if (conditionString.indexOf(LTE.op()) > 0) {// 小于等于
-			return LTE;
-		} else if (conditionString.indexOf(GTE.op()) > 0) { // 大于等于
-			return GTE;
-		} else if (conditionString.indexOf(LT.op()) > 0) { // 小于
-			return LT;
-		} else if (conditionString.indexOf(GT.op()) > 0) { // 大于
-			return GT;
-		} else if (conditionString.indexOf(NOT_EQUAL.op()) > 0) {
-			String[] kv = conditionString.split(NOT_EQUAL.op());
-			//			String column = kv[0];
-			Object value = kv[1];
-			if (value.toString().indexOf(",") != -1) { // not in
-				return NOT_IN;
-			} else { // 不等于
-				return NOT_EQUAL;
-			}
-		} else if (conditionString.indexOf(EQUAL.op()) > 0) {
-			String[] kv = conditionString.split(EQUAL.op());
-			//			String column = kv[0];
-			Object value = kv[1];
-			if (value.toString().indexOf(",") != -1) { // in
-				return IN;
-			} else if (value.toString().indexOf("~") != -1) { // between
-				return BETWEEN;
-			} else { // 等于
-				return EQUAL;
+	private Cond parseCond(String conditionString) {
+		Operator operator = null;
+		int pos = 0;
+		int length = conditionString.length();
+		over: while (pos < length) {
+			switch (conditionString.charAt(pos++)) {
+			case '=':
+				String tail = conditionString.substring(pos);
+				if (tail.contains(",")) { // in
+					operator = IN;
+				} else if (tail.contains("~")) { // between
+					operator = BETWEEN;
+				} else { // 等于
+					operator = EQUAL;
+				}
+				break over;
+			case '!':
+				switch (conditionString.charAt(pos++)) {
+				case '=':
+					String notTail = conditionString.substring(pos);
+					if (notTail.contains(",")) { // in
+						operator = NOT_IN;
+					} else { // 等于
+						operator = NOT_EQUAL;
+					}
+					break over;
+
+				case '%':
+					switch (conditionString.charAt(pos++)) {
+					case '=':
+						operator = NOT_LIKE;
+						break over;
+					default:
+						break;
+					}
+					break over;
+
+				default:
+					break;
+				}
+				break;
+			case '>':
+				switch (conditionString.charAt(pos++)) {
+				case '=':
+					operator = GTE;
+					break over;
+				default:
+					operator = GT;
+				}
+				break;
+			case '<':
+				switch (conditionString.charAt(pos++)) {
+				case '=':
+					operator = LTE;
+					break over;
+				default:
+					operator = LT;
+				}
+				break;
+			case '%':
+				switch (conditionString.charAt(pos++)) {
+				case '=':
+					operator = LIKE;
+					break over;
+				default:
+					break;
+				}
+				break;
+
+			default:
+				break;
 			}
 		}
-		return null;
+		if (operator == null) {
+			return null;
+		}
+
+		String[] kv = null;
+		/*
+		 * 对in和between做特殊处理, 待优化
+		 */
+		switch (operator) {
+		case IN:
+		case BETWEEN:
+			kv = conditionString.split(EQUAL.op(), 2);
+			break;
+		case NOT_IN:
+			kv = conditionString.split(NOT_EQUAL.op(), 2);
+			break;
+
+		default:
+			kv = conditionString.split(operator.op(), 2);
+			break;
+		}
+
+		//		String[] kv = conditionString.split(operator.op(), 2);
+		return new Cond(operator, kv[0], kv[1]);
+	}
+
+	private class Cond {
+
+		private Operator operator;
+
+		String column;
+
+		Object value;
+
+		public Cond(Operator operator, String column, Object value) {
+			this.operator = operator;
+			this.column = column;
+			this.value = value;
+		}
+
+		public Operator getOperator() {
+			return operator;
+		}
+
+		public String getColumn() {
+			return column;
+		}
+
+		public Object getValue() {
+			return value;
+		}
+
 	}
 
 	/**

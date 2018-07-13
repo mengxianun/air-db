@@ -47,26 +47,35 @@ public class AirParser {
 		//		if (object.containsKey(NATIVE)) {
 		//			return;
 		//		}
+
+		if (object.containsKey(Structure.NATIVE)) {
+			if (object.containsKey(Type.SELECT) || object.containsKey(Type.QUERY)) { // ES原生JSON
+				//
+			} else {
+				String sql = object.getString(Structure.NATIVE);
+				sql = sql.trim();
+				if (sql.startsWith("select")) {
+					type = SELECT;
+				} else if (sql.startsWith("insert")) {
+					type = INSERT;
+				} else if (sql.startsWith("update")) {
+					type = UPDATE;
+				} else if (sql.startsWith("delete")) {
+					type = DELETE;
+				}
+				if (object.containsKey(Structure.SOURCE)) { // 原生SQL查询
+					db = object.getString(Structure.SOURCE);
+				} else {
+					db = AirContext.getDefaultDb();
+				}
+				return;
+			}
+		}
+
 		// 操作类型
 		parseType();
-		table = object.getString(type).trim();
-		if (table.indexOf(".") != -1) { // 指定了数据源
-			String[] dbTableString = table.split("\\.");
-			db = dbTableString[0];
-			table = dbTableString[1];
-			if (table.indexOf(" ") != -1) {
-				String[] tableAlias = table.split(" ");
-				table = tableAlias[0];
-				alias = tableAlias[1];
-			}
-		} else if (table.indexOf(" ") != -1) {
-			String[] tableAlias = table.split(" ");
-			table = tableAlias[0];
-			alias = tableAlias[1];
-		}
-		if (db == null) {
-			db = AirContext.getDefaultDb();
-		}
+		// 数据源/表/别名
+		parseDbTable();
 		if (object.containsKey(TEMPLATE)) {
 			template = Template.from(object.getString(TEMPLATE));
 		}
@@ -108,6 +117,27 @@ public class AirParser {
 			throw new DbException("未指定操作类型或指定了多个操作类型");
 		}
 		type = types.get(0);
+	}
+
+	public void parseDbTable() {
+		table = object.getString(type).trim();
+		if (table.indexOf(".") != -1) { // 指定了数据源
+			String[] dbTableString = table.split("\\.");
+			db = dbTableString[0];
+			table = dbTableString[1];
+			if (table.indexOf(" ") != -1) {
+				String[] tableAlias = table.split(" ");
+				table = tableAlias[0];
+				alias = tableAlias[1];
+			}
+		} else if (table.indexOf(" ") != -1) {
+			String[] tableAlias = table.split(" ");
+			table = tableAlias[0];
+			alias = tableAlias[1];
+		}
+		if (db == null) {
+			db = AirContext.getDefaultDb();
+		}
 	}
 
 	public JSONObject getObject() {

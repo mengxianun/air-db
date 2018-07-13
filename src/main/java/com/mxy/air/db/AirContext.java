@@ -1,8 +1,11 @@
 package com.mxy.air.db;
 
+import java.io.IOException;
 import java.util.Map.Entry;
 
 import javax.sql.DataSource;
+
+import org.elasticsearch.client.RestClient;
 
 import com.google.common.base.Strings;
 import com.google.inject.Injector;
@@ -287,6 +290,31 @@ public class AirContext {
 			}
 		}
 		return false;
+	}
+
+	public static String getEsDb() {
+		JSONObject dbsConfig = AirContext.getDbsConfig();
+		String esDb = null;
+		for (String db : dbsConfig.keySet()) {
+			if (AirContext.isElasticsearch(db)) {
+				esDb = db;
+				break;
+			}
+		}
+		return esDb;
+	}
+
+	public static RestClient getEsClient() {
+		RestClient client = injector.getInstance(Key.get(RestClient.class, Names.named(getEsDb())));
+		return client;
+	}
+
+	public static void closeEsClient() {
+		try {
+			getEsClient().close();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 }

@@ -141,6 +141,7 @@ public class Translator {
 		JSONObject dbObject = config.getObject(DatacolorConfig.DATASOURCES);
 		if (defaultDb == null && dbObject != null) {
 			defaultDb = dbObject.getFirst().getKey();
+			config.put(DatacolorConfig.DEFAULT_DATASOURCE, defaultDb);
 		}
 		Set<String> dbs = dbObject == null ? new HashSet<>() : dbObject.keySet();
 		/*
@@ -343,7 +344,7 @@ public class Translator {
 				}
 			}
 		} catch (IOException e) {
-			logger.error(String.format("读取ES索引mapping失败 %s"), e);
+			logger.error(String.format("读取ES索引mapping失败"), e);
 		}
 	}
 
@@ -503,18 +504,17 @@ public class Translator {
 			AirContext.outState();
 			return result;
 		}
-		// 原生查询
+		// ES原生JSON查询
 		if (AirContext.isElasticsearch(parser.getDb())) {
-			if (object.containsKey(Structure.NATIVE)) {
-				if (parser.getType() == Type.SELECT || parser.getType() == Type.QUERY) {
-					try {
-						JSON result = esHandler.handle(parser.getDb(), parser.getTable(),
-								object.getObject(Structure.NATIVE));
-						return result;
-					} catch (IOException e) {
-						e.printStackTrace();
-						throw new DbException(e.getMessage());
-					}
+			if (object.containsKey(Structure.NATIVE)
+					&& (object.containsKey(Type.SELECT) || object.containsKey(Type.QUERY))) {
+				try {
+					JSON result = esHandler.handle(parser.getDb(), parser.getTable(),
+							object.getObject(Structure.NATIVE));
+					return result;
+				} catch (IOException e) {
+					e.printStackTrace();
+					throw new DbException(e.getMessage());
 				}
 			}
 		}

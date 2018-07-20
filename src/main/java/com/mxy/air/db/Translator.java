@@ -613,7 +613,7 @@ public class Translator {
 					for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
 						String column = entry.getKey();
 						Object value = entry.getValue();
-						if (value instanceof JSONObject) { // 关联对象的情况暂不处理
+						if (value instanceof Map) { // 关联对象的情况暂不处理
 							// header.addAll(buildHeader((JSONObject) value, db, column));
 						} else {
 							columnHeader.add(column);
@@ -666,7 +666,7 @@ public class Translator {
 			Object value = entry.getValue();
 			if (value == null) {
 				csvRecord.add("");
-			} else if (value instanceof JSONObject) { // 关联对象的情况暂不处理
+			} else if (value instanceof Map) { // 关联对象的情况暂不处理
 				// csvRecord.addAll(buildRecord((JSONObject) value));
 			} else {
 				JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);

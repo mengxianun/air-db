@@ -46,9 +46,12 @@ import com.google.inject.Key;
 import com.google.inject.Singleton;
 import com.google.inject.matcher.Matchers;
 import com.google.inject.name.Names;
+import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Template;
 import com.mxy.air.db.Structure.Type;
 import com.mxy.air.db.annotation.SQLLog;
+import com.mxy.air.db.builder.Condition;
+import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.config.DatacolorConfig;
 import com.mxy.air.db.config.DatacolorConfig.Datasource;
 import com.mxy.air.db.config.DatacolorConfig.Es;
@@ -470,7 +473,8 @@ public class Translator {
 		return translateToJson(json).toString();
 	}
 
-	public JSON translateToJson(String json) throws SQLException {
+	public JSON translateToJson(String json, Condition... conditions)
+			throws SQLException {
 		AirParser parser = new AirParser(json);
 		JSONObject object = parser.getObject();
 		if (object.containsKey(Type.STRUCT)) {
@@ -519,7 +523,39 @@ public class Translator {
 			}
 		}
 		Engine engine = new Engine(object).parse();
-		String db = engine.getBuilder().db();
+		SQLBuilder sqlBuilder = engine.getBuilder();
+		String db = sqlBuilder.db();
+		/*
+		 * 额外条件处理
+		 */
+		if (conditions != null && conditions.length > 0) {
+			List<Condition> filterConditions = new ArrayList<>();
+			for (Condition condition : conditions) {
+				condition.setDb(db);
+				boolean joinAdded = false;
+				if (sqlBuilder.joins() != null) {
+					for (Join join : sqlBuilder.joins()) {
+						if (join.getTargetTable().equals(condition.getTable())) {
+							joinAdded = true;
+							condition.setAlias(join.getTargetAlias());
+							filterConditions.add(condition);
+							break;
+						}
+					}
+				}
+				if (!joinAdded) {
+					String tableAlias = SQLBuilder.getRandomString(6) + "_" + condition.getTable();
+					condition.setAlias(tableAlias);
+					boolean addJoin = sqlBuilder.addJoin(db, condition.getTable(), tableAlias);
+					if (addJoin) {
+						filterConditions.add(condition);
+					}
+				}
+			}
+			if (!filterConditions.isEmpty()) {
+				sqlBuilder.addCondition(new Condition(null, null, null, Operator.AND, null, null, filterConditions));
+			}
+		}
 		AirContext.inState(db);
 		JSON result = handler.handle(engine);
 		AirContext.outState();
@@ -533,7 +569,7 @@ public class Translator {
 	 * @throws SQLException
 	 * @throws IOException
 	 */
-	public InputStream translateToStream(String json) throws SQLException, IOException {
+	public InputStream translateToStream(String json, Condition... conditions) throws SQLException, IOException {
 		AirParser parser = new AirParser(json);
 		JSONObject jsonObject = parser.getObject();
 		String db = parser.getDb();
@@ -584,7 +620,7 @@ public class Translator {
 		} else if (jsonObject.containsKey(Structure.RESULT)) { // 导出CSV数据
 			String result = jsonObject.getString(Structure.RESULT);
 			if (result.equalsIgnoreCase(Structure.Result.CSV.toString())) {
-				JSON jsonResult = translateToJson(json);
+				JSON jsonResult = translateToJson(json, conditions);
 				List<Map<String, Object>> resultList = null;
 				if (jsonObject.containsKey(Structure.LIMIT)) { // 分页
 					resultList = ((JSONObject) jsonResult).getArray(PageResult.ATTRIBUTE.DATA).toMapList();

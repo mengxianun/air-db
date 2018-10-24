@@ -292,7 +292,7 @@ public class DataRenderer {
 	 *            所有字段配置
 	 */
 	public void render(Map<String, Object> record, JSONObject columnsConfig) {
-		if (columnsConfig == null || columnsConfig.size() == 0)
+		if (columnsConfig == null || columnsConfig.size() == 0 || record == null)
 			return;
 		record.replaceAll((k, v) -> render(v, columnsConfig.getObject(k)));
 	}

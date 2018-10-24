@@ -31,7 +31,6 @@ import static com.mxy.air.db.Structure.Type.UPDATE;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -490,7 +489,7 @@ public class Engine {
 
 	private List<Condition> parseWhere(Object where) {
 		if (where == null) {
-			return Collections.emptyList();
+			return new ArrayList<>();
 		}
 		List<Condition> conditions = new ArrayList<>();
 		if (where instanceof JSONArray) { // 多个条件

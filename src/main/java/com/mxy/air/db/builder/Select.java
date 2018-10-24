@@ -159,10 +159,20 @@ public class Select extends SQLBuilder {
 					if (columnConfigs.containsKey(columnName)) { // 查询的列在主表的列配置中, 即表示该列是属于主表的列
 						columnBuilder.append(aliasPrefix).append(column).append(","); // 拼接主表字段字符串
 					} else { // 其他字段字符串, 如方法
-						/*
-						 *   判断查询列是否为函数, 是函数的话直接拼接, 不是的话不拼接
-						 */
-						columnBuilder.append(column).append(",");
+						boolean findTable = false;
+						if (!isEmpty(joins)) { // 存在关联表查询
+							for (Join join : joins) {
+								JSONObject joinColumnConfigs = AirContext.getColumnsConfig(db, join.getTargetTable());
+								if (joinColumnConfigs.containsKey(column)) {
+									columnBuilder.append(join.getTargetAlias()).append(".").append(column).append(",");
+									findTable = true;
+									break;
+								}
+							}
+						}
+						if (!findTable) {
+							columnBuilder.append(column).append(",");
+						}
 					}
 					remainColumns.remove(column); // 删除字段
 				}
@@ -262,7 +272,7 @@ public class Select extends SQLBuilder {
 	public String count() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("select count(1) from (").append("select ").append(columnString)
-				.append(tableString).append(" ").append(whereString)
+				.append(tableString).append(whereString).append(groupString)
 				.append(") origin_table");
 		return builder.toString();
 		//		return "select count(1) from (" + sql + ") origin_table";

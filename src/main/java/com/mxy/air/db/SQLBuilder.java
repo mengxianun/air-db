@@ -5,8 +5,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import com.google.common.base.Strings;
+import com.mxy.air.db.Structure.JoinType;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Delete;
@@ -14,7 +16,10 @@ import com.mxy.air.db.builder.Insert;
 import com.mxy.air.db.builder.Join;
 import com.mxy.air.db.builder.Select;
 import com.mxy.air.db.builder.Update;
+import com.mxy.air.db.config.TableConfig.Association;
+import com.mxy.air.db.config.TableConfig.Column;
 import com.mxy.air.db.jdbc.Dialect;
+import com.mxy.air.json.JSONObject;
 
 /**
  * SQL构造器
@@ -211,6 +216,18 @@ public abstract class SQLBuilder {
         return true;
     }
 
+	public static String getRandomString(int length) {
+		//		String base = "abcdefghijklmnopqrstuvwxyz0123456789";
+		String base = "abcdefghijklmnopqrstuvwxyz";
+		Random random = new Random();
+		StringBuffer sb = new StringBuffer();
+		for (int i = 0; i < length; i++) {
+			int number = random.nextInt(base.length());
+			sb.append(base.charAt(number));
+		}
+		return sb.toString();
+	}
+
 	public SQLBuilder equal(String column, Object value) {
 		where = isEmpty(where) ? "" : where + " and ";
 		where += column + "= ?";
@@ -352,6 +369,72 @@ public abstract class SQLBuilder {
 
 	public void dialect(Dialect dialect) {
 		this.dialect = dialect;
+	}
+
+	public boolean addJoin(String joinDb, String joinTable, String joinTableAlias) {
+		if (joins == null) {
+			joins = new ArrayList<>();
+		}
+		for (Join join : joins) {
+			if (join.getTargetTable().equals(joinTable)) {
+				return true;
+			}
+		}
+		boolean findAssociation = false;
+		JSONObject columnsConfig = AirContext.getColumnsConfig(db, table);
+		for (String columnName : columnsConfig.keySet()) {
+			JSONObject columnConfig = columnsConfig.getObject(columnName);
+			if (columnConfig.containsKey(Column.ASSOCIATION)) {
+				JSONObject columnAssociation = columnConfig.getObject(Column.ASSOCIATION);
+				String associationTable = columnAssociation.getString(Association.TARGET_TABLE);
+				String associationColumn = columnAssociation.getString(Association.TARGET_COLUMN);
+				String associationType = columnAssociation.getString(Association.TYPE);
+				if (joinTable.equals(associationTable)) {
+					this.joins
+							.add(new Join(table, alias, columnName, associationTable, joinTableAlias, associationColumn,
+							JoinType.LEFT, Association.Type.from(associationType)));
+					findAssociation = true;
+					break;
+				}
+			}
+		}
+		if (!findAssociation) {
+			for (String columnName : columnsConfig.keySet()) {
+				JSONObject columnConfig = columnsConfig.getObject(columnName);
+				if (columnConfig.containsKey(Column.ASSOCIATION)) {
+					JSONObject columnAssociation = columnConfig.getObject(Column.ASSOCIATION);
+					String associationTable = columnAssociation.getString(Association.TARGET_TABLE);
+					String associationColumn = columnAssociation.getString(Association.TARGET_COLUMN);
+					String associationType = columnAssociation.getString(Association.TYPE);
+					JSONObject innerColumnsConfig = AirContext.getColumnsConfig(db, associationTable);
+					for (String innerColumnName : innerColumnsConfig.keySet()) {
+						JSONObject innerColumnConfig = innerColumnsConfig.getObject(innerColumnName);
+						if (innerColumnConfig.containsKey(Column.ASSOCIATION)) {
+							JSONObject innerColumnAssociation = innerColumnConfig.getObject(Column.ASSOCIATION);
+							String innerAssociationTable = innerColumnAssociation.getString(Association.TARGET_TABLE);
+							String innerAssociationColumn = innerColumnAssociation.getString(Association.TARGET_COLUMN);
+							String innerAssociationType = innerColumnAssociation.getString(Association.TYPE);
+							if (joinTable.equals(innerAssociationTable)) {
+								Join join = new Join(table, alias, columnName, associationTable, null,
+										associationColumn, JoinType.LEFT, Association.Type.from(associationType));
+								this.joins.add(join);
+								this.joins.add(new Join(associationTable, join.getTargetAlias(), innerColumnName,
+										innerAssociationTable, joinTableAlias, innerAssociationColumn, JoinType.LEFT,
+										Association.Type.from(innerAssociationType)));
+								return true;
+							}
+						}
+					}
+				}
+			}
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	public void addCondition(Condition condition) {
+		this.conditions.add(condition);
 	}
 
 }

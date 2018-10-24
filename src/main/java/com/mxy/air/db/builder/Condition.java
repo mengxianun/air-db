@@ -56,6 +56,22 @@ public class Condition {
 	 */
 	private List<Object> values = new ArrayList<>();
 
+	public Condition(String table, String column, Object value) {
+		this.table = table;
+		this.column = column;
+		this.value = value;
+		this.connector = Operator.OR;
+		this.operator = Operator.EQUAL;
+	}
+
+	public Condition(String table, String column, Object value, Operator connector, Operator operator) {
+		this.table = table;
+		this.column = column;
+		this.value = value;
+		this.connector = connector;
+		this.operator = operator;
+	}
+
 	public Condition(String db, String table, String alias, Operator connector, Operator operator, String column,
 			Object value) {
 		this.db = db;

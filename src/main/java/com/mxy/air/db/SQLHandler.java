@@ -69,6 +69,9 @@ public class SQLHandler {
 	public JSONObject detail(SQLBuilder builder) throws SQLException {
 		SQLSession sqlSession = AirContext.getSqlSession(builder.db());
 		Map<String, Object> detail = sqlSession.detail(builder.sql(), builder.params().toArray());
+		if (detail == null) {
+			return new JSONObject();
+		}
 		// 结果渲染
 		JSONObject columnsConfig = AirContext.getColumnsConfig(builder.db(), builder.table());
 		renderer.render(detail, columnsConfig);

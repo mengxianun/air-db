@@ -130,7 +130,7 @@ public class DataRenderer {
 			for (Map.Entry<String, Object> recordEntry : record.entrySet()) {
 				String column = recordEntry.getKey();
 				Object value = recordEntry.getValue();
-				if (column.indexOf(".") == -1) { // 主表的字段
+				if (column.indexOf(".") == -1 || column.indexOf("(") >= 0) { // 主表的字段
 					if (!appeared) {
 						JSONObject columnConfig = columnsConfig.getObject(column);
 						uniqueRecord.put(column, render(value, columnConfig));

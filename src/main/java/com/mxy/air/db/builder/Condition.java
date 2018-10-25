@@ -84,6 +84,9 @@ public class Condition {
 	}
 
 	public String sql() {
+		if (value == null || "".equals(value)) {
+			return "";
+		}
 		StringBuilder conditionBuilder = new StringBuilder();
 		/*
 		 * 条件连接符

@@ -20,7 +20,7 @@ public class HtmlResultConverter extends ConverterUtils {
 
 	public InputStream export(List<Map<String, Object>> data) throws Exception {
 
-		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(new File(getTemplateFile(TEMPLATE_FILENAME))), "UTF-8"));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(getTemplateFile(TEMPLATE_FILENAME)), "UTF-8"));
 
 		StringBuffer html = new StringBuffer();
 		String str;

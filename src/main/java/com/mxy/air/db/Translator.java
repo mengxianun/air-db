@@ -529,7 +529,11 @@ public class Translator {
 			for (Condition condition : conditions) {
 				condition.setDb(db);
 				boolean joinAdded = false;
-				if (sqlBuilder.joins() != null) {
+				if (sqlBuilder.table().equals(condition.getTable())) {
+					joinAdded = true;
+					condition.setAlias(sqlBuilder.alias);
+					filterConditions.add(condition);
+				} else if (sqlBuilder.joins() != null) {
 					for (Join join : sqlBuilder.joins()) {
 						if (join.getTargetTable().equals(condition.getTable())) {
 							joinAdded = true;

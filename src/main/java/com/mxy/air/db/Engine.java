@@ -316,16 +316,21 @@ public class Engine {
 			for (Object joinObject : joinArray.list()) {
 				if (joinObject instanceof JSONObject) {
 					String joinTable = ((JSONObject) joinObject).entrySet().iterator().next().getValue().toString();
-					aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
+					//					aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
+					parseJoinTableAlias(joinTable);
 				} else {
-					aliases.put(joinObject.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinObject.toString());
+					parseJoinTableAlias(joinObject.toString());
+					//					aliases.put(joinObject.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinObject.toString());
 				}
 			}
 		} else if (join instanceof JSONObject) {
 			String joinTable = ((JSONObject) join).entrySet().iterator().next().getValue().toString();
-			aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
+			parseJoinTableAlias(joinTable);
+			//			aliases.put(joinTable, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTable);
 		} else {
-			aliases.put(join.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + join.toString());
+			parseJoinTableAlias(join.toString());
+			//			aliases.put(join.toString(), DEFAULT_JOIN_TABLE_ALIAS_PREFIX + join.toString());
+
 		}
 
 		if (join instanceof JSONArray) { // join多个表
@@ -357,6 +362,30 @@ public class Engine {
 		return joins;
 	}
 
+	private void parseJoinTableAlias(String joinTableString) {
+		if (joinTableString.contains(" as ")) {
+			String[] joinTableNameAlias = joinTableString.split(" as ", 2);
+			aliases.put(joinTableNameAlias[0], joinTableNameAlias[1]);
+		} else if (joinTableString.contains(" ")) {
+			String[] joinTableNameAlias = joinTableString.split("\\s+", 2);
+			aliases.put(joinTableNameAlias[0], joinTableNameAlias[1]);
+		} else {
+			aliases.put(joinTableString, DEFAULT_JOIN_TABLE_ALIAS_PREFIX + joinTableString);
+		}
+	}
+
+	private String getJoinTableName(String joinTableString) {
+		if (joinTableString.contains(" as ")) {
+			String[] joinTableNameAlias = joinTableString.split(" as ", 2);
+			return joinTableNameAlias[0];
+		} else if (joinTableString.contains(" ")) {
+			String[] joinTableNameAlias = joinTableString.split("\\s+", 2);
+			return joinTableNameAlias[0];
+		} else {
+			return joinTableString;
+		}
+	}
+
 	/**
 	 * 解析JSONObject类型join
 	 * 
@@ -381,6 +410,7 @@ public class Engine {
 	 * @return
 	 */
 	private Join parseJoin(String joinTable, JoinType joinType) {
+		joinTable = getJoinTableName(joinTable);
 		JSONObject tableConfig = AirContext.getTableConfig(db, table);
 		JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
 		/*

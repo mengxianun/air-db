@@ -26,9 +26,20 @@ dependencies {
   implementation 'org.elasticsearch.client:elasticsearch-rest-high-level-client:6.2.4'
   // opencsv
   implementation 'com.opencsv:opencsv:4.2'
+  implementation 'org.apache.poi:poi:3.11'
+  implementation 'com.itextpdf:itextpdf:5.5.0'
+  implementation 'com.itextpdf:itext-asian:5.2.0'
+  compile group: 'org.apache.pdfbox', name: 'pdfbox', version: '2.0.4'
+  compile group: 'org.freemarker', name: 'freemarker', version: '2.3.22'
   
 }
 
+processResources {
+  from('src/main/java') {
+    include '**/*'
+    exclude "**/*.java"
+  }
+}
 task javadocJar(type: Jar) {
     classifier = 'javadoc'
     from javadoc

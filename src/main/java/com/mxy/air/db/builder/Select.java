@@ -87,6 +87,7 @@ public class Select extends SQLBuilder {
 			List<Condition> primaryTableConditions = conditions.stream().filter(c -> c.getTable().equals(table))
 					.collect(Collectors.toList());
 			conditions.removeAll(primaryTableConditions);
+			primaryTableConditions.forEach(e -> e.setAlias(""));
 			Select primarySelect = new Select(table, null, Collections.emptyList(), null, primaryTableConditions, null,
 					null, limit);
 			primarySelect.build();

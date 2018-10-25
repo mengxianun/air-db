@@ -24,15 +24,11 @@ public class PDFResultConverter {
 		return new PDFResultConverter(header);
 	}
 
-
-
 	public InputStream export(List<Map<String, Object>> data) {
 
 		Document doc = new Document();
 
-		byte[] result=null;
 		ByteArrayOutputStream baos = null;
-
 
 		try {
 
@@ -51,9 +47,6 @@ public class PDFResultConverter {
 
 			//创建PdfTable对象
 			PdfPTable table=new PdfPTable(headers.size());
-
-			//设置各列的列宽
-			table.setTotalWidth(new float[]{100,350,350});
 
 			Font tableTitleFont = new Font(bfChinese,18,Font.BOLD);//表头
 			Font dataFont = new Font(bfChinese,12,Font.NORMAL);

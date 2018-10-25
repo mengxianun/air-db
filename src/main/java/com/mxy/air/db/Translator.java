@@ -2,11 +2,7 @@ package com.mxy.air.db;
 
 import static com.mxy.air.db.Structure.FIELDS;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,12 +12,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -29,8 +20,13 @@ import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
+import com.mxy.air.db.ResultConverter.ExcelResultConverter;
+import com.mxy.air.db.ResultConverter.HtmlResultConverter;
+import com.mxy.air.db.ResultConverter.PDFResultConverter;
+import com.mxy.air.db.ResultConverter.WordResultConverter;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
@@ -693,6 +689,103 @@ public class Translator {
 			}
 		}
 		throw new DbException("请求JSON解析失败");
+	}
+
+	private static List<String> getHeaderDisplayNames(String db, String table, List<Map<String, Object>> resultList) {
+		List<String> columnHeaderDisplay = new ArrayList<>();
+		if (resultList.size() > 0) {
+			Map<String, Object> firstRecord = resultList.iterator().next();
+			for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
+				String column = entry.getKey();
+				Object value = entry.getValue();
+				if (value instanceof Map) { // 关联对象的情况暂不处理
+					// header.addAll(buildHeader((JSONObject) value, db, column));
+				} else {
+					JSONObject columnConfig = AirContext.getColumnsConfig(db, table).getObject(column);
+					if (columnConfig == null || columnConfig.size() == 0) {
+						columnHeaderDisplay.add(column);
+					} else {
+						String columnDisplay = Strings
+							.nullToEmpty(columnConfig.getString(TableConfig.Column.DISPLAY));
+						if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+							JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+							StringBuilder builder = new StringBuilder();
+							builder.append(columnDisplay).append("(");
+							String[] codeValues = columnCode.keySet().stream()
+								.map(k -> k + ":" + columnCode.get(k)).toArray(String[]::new);
+							builder.append(String.join(",", codeValues));
+							builder.append(")");
+							columnHeaderDisplay.add(builder.toString());
+						} else {
+							columnHeaderDisplay.add(columnDisplay);
+						}
+					}
+				}
+			}
+		}
+		return columnHeaderDisplay;
+	}
+	public InputStream translateExcel(String json, Condition... conditions) throws SQLException, IOException {
+		AirParser parser = new AirParser(json);
+		String db = parser.getDb();
+		String table = parser.getTable();
+		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
+		List<String> header = getHeaderDisplayNames(db, table, resultList);
+
+		ExcelResultConverter excelDC = ExcelResultConverter.getInstance(header);
+
+		return excelDC.export(resultList);
+	}
+	public InputStream translateWord(String json, Condition... conditions) throws Exception {
+		AirParser parser = new AirParser(json);
+		String db = parser.getDb();
+		String table = parser.getTable();
+		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
+		List<String> header = getHeaderDisplayNames(db, table, resultList);
+
+		WordResultConverter excelDC = WordResultConverter.getInstance(header);
+
+		return excelDC.export(resultList);
+	}
+	public InputStream translatePdf(String json, Condition... conditions) throws SQLException, IOException {
+		AirParser parser = new AirParser(json);
+		String db = parser.getDb();
+		String table = parser.getTable();
+		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
+		List<String> header = getHeaderDisplayNames(db, table, resultList);
+
+		PDFResultConverter excelDC = PDFResultConverter.getInstance(header);
+
+		return excelDC.export(resultList);
+	}
+	public InputStream translateHtml(String json, Condition... conditions) throws Exception {
+		AirParser parser = new AirParser(json);
+		String db = parser.getDb();
+		String table = parser.getTable();
+		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
+		List<String> header = getHeaderDisplayNames(db, table, resultList);
+
+		HtmlResultConverter excelDC = HtmlResultConverter.getInstance(header);
+
+		return excelDC.export(resultList);
+	}
+
+	private List<Map<String, Object>> getListMapResult(String json, Condition... conditions) throws SQLException, IOException {
+		AirParser parser = new AirParser(json);
+		JSONObject jsonObject = parser.getObject();
+		JSON jsonResult = translateToJson(json, conditions);
+		List<Map<String, Object>> resultList = null;
+		if (jsonObject.containsKey(Structure.LIMIT)) { // 分页
+			resultList = ((JSONObject) jsonResult).getArray(PageResult.ATTRIBUTE.DATA).toMapList();
+		} else {
+			if (jsonResult instanceof JSONObject) {
+				resultList = new ArrayList<>();
+				resultList.add(((JSONObject) jsonResult).toMap());
+			} else {
+				resultList = ((JSONArray) jsonResult).toMapList();
+			}
+		}
+		return resultList;
 	}
 
 	private List<String> buildRecord(Map<String, Object> record, String db, String table) {

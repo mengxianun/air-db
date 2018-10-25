@@ -2,7 +2,11 @@ package com.mxy.air.db;
 
 import static com.mxy.air.db.Structure.FIELDS;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,7 +16,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -20,13 +29,8 @@ import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
-import com.mxy.air.db.ResultConverter.ExcelResultConverter;
-import com.mxy.air.db.ResultConverter.HtmlResultConverter;
-import com.mxy.air.db.ResultConverter.PDFResultConverter;
-import com.mxy.air.db.ResultConverter.WordResultConverter;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
@@ -45,6 +49,10 @@ import com.google.inject.name.Names;
 import com.mxy.air.db.Structure.Operator;
 import com.mxy.air.db.Structure.Template;
 import com.mxy.air.db.Structure.Type;
+import com.mxy.air.db.ResultConverter.ExcelResultConverter;
+import com.mxy.air.db.ResultConverter.HtmlResultConverter;
+import com.mxy.air.db.ResultConverter.PDFResultConverter;
+import com.mxy.air.db.ResultConverter.WordResultConverter;
 import com.mxy.air.db.annotation.SQLLog;
 import com.mxy.air.db.builder.Condition;
 import com.mxy.air.db.builder.Join;
@@ -527,6 +535,9 @@ public class Translator {
 		if (conditions != null && conditions.length > 0) {
 			List<Condition> filterConditions = new ArrayList<>();
 			for (Condition condition : conditions) {
+				if (condition == null) {
+					continue;
+				}
 				condition.setDb(db);
 				boolean joinAdded = false;
 				if (sqlBuilder.table().equals(condition.getTable())) {

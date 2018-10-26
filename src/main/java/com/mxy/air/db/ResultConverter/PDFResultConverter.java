@@ -5,6 +5,7 @@ import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import com.mxy.air.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -13,15 +14,16 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-public class PDFResultConverter {
+public class PDFResultConverter extends ConverterUtils {
 
 	List<String> headers;
 
-	private PDFResultConverter(List<String> header) {
+	private PDFResultConverter(List<String> header, JSONObject config) {
 		this.headers = header;
+		this.config = config;
 	}
-	public static PDFResultConverter getInstance(List<String> header) {
-		return new PDFResultConverter(header);
+	public static PDFResultConverter getInstance(List<String> header, JSONObject config) {
+		return new PDFResultConverter(header, config);
 	}
 
 	public InputStream export(List<Map<String, Object>> data) {
@@ -48,7 +50,7 @@ public class PDFResultConverter {
 			//创建PdfTable对象
 			PdfPTable table=new PdfPTable(headers.size());
 
-			Font tableTitleFont = new Font(bfChinese,18,Font.BOLD);//表头
+			Font tableTitleFont = new Font(bfChinese,13,Font.BOLD);//表头
 			Font dataFont = new Font(bfChinese,12,Font.NORMAL);
 
 			//表头添加表格内容
@@ -59,7 +61,11 @@ public class PDFResultConverter {
 			//遍历数据集合进行添加
 			for (int i = 0; i < data.size(); i++) {
 				for (Map.Entry<String, Object> entry : data.get(i).entrySet()) {
-					table.addCell(getPDFCell(entry.getValue().toString(), dataFont));
+					if (entry.getValue() instanceof Map) {
+						//TODO
+					} else {
+						table.addCell(getPDFCell(buildColumn(entry.getKey(), entry.getValue()), dataFont));
+					}
 				}
 			}
 

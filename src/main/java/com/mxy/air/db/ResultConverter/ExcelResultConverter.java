@@ -1,5 +1,6 @@
 package com.mxy.air.db.ResultConverter;
 
+import com.mxy.air.json.JSONObject;
 import org.apache.poi.hssf.usermodel.HSSFCellStyle;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
@@ -12,17 +13,18 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-public class ExcelResultConverter {
+public class ExcelResultConverter extends ConverterUtils {
 
 	List<String> headers;
 
-	private ExcelResultConverter(List<String> header) {
+	private ExcelResultConverter(List<String> header, JSONObject config) {
 		this.headers = header;
+		this.config = config;
 		this.init();
 		this.initStyle();
 	}
-	public static ExcelResultConverter getInstance(List<String> header) {
-		return new ExcelResultConverter(header);
+	public static ExcelResultConverter getInstance(List<String> header, JSONObject config) {
+		return new ExcelResultConverter(header, config);
 	}
 
 	private HSSFWorkbook wb;
@@ -58,7 +60,11 @@ public class ExcelResultConverter {
 			Map<String, Object> map = data.get(i);
 			int j = 0;
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				dataRow.createCell(j++).setCellValue(entry.getValue().toString());
+				if (entry.getValue() instanceof Map) {
+					//TODO
+				} else {
+					dataRow.createCell(j++).setCellValue(buildColumn(entry.getKey(), entry.getValue()));
+				}
 			}
 		}
 		ByteArrayOutputStream os = new ByteArrayOutputStream();

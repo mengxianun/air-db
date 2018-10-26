@@ -1,5 +1,7 @@
 package com.mxy.air.db.ResultConverter;
 
+import com.mxy.air.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
@@ -18,11 +20,12 @@ public class WordResultConverter extends ConverterUtils {
 	private static final String TD = "<td width=553 valign=top style='width:415.0pt;border:solid windowtext 1.0pt;mso-border-alt:solid windowtext .5pt;padding:0cm 5.4pt 0cm 5.4pt'>" +
 		"<p class=MsoNormal><span style='font-family:\"微软雅黑\",sans-serif'/tr>${td}</span></p></td>";
 
-	private WordResultConverter(List<String> header) {
+	private WordResultConverter(List<String> header, JSONObject config) {
 		this.headers = header;
+		this.config = config;
 	}
-	public static WordResultConverter getInstance(List<String> header) {
-		return new WordResultConverter(header);
+	public static WordResultConverter getInstance(List<String> header, JSONObject config) {
+		return new WordResultConverter(header, config);
 	}
 
 	public InputStream export(List<Map<String, Object>> data) throws Exception {
@@ -51,7 +54,11 @@ public class WordResultConverter extends ConverterUtils {
 		for (Map<String, Object> map : data) {
 			StringBuilder tds = new StringBuilder();
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				tds.append(replaceParams(TD, "td", entry.getValue().toString()));
+				if (entry.getValue() instanceof Map) {
+					//TODO
+				} else {
+					tds.append(replaceParams(TD, "td", buildColumn(entry.getKey(), entry.getValue())));
+				}
 			}
 			tableContent.append(replaceParams(TR, "tr", tds.toString()));
 		}

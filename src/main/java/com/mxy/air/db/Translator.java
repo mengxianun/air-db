@@ -747,7 +747,7 @@ public class Translator {
 		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
 		List<String> header = getHeaderDisplayNames(db, table, resultList);
 
-		ExcelResultConverter excelDC = ExcelResultConverter.getInstance(header);
+		ExcelResultConverter excelDC = ExcelResultConverter.getInstance(header, AirContext.getColumnsConfig(db, table));
 
 		return excelDC.export(resultList);
 	}
@@ -758,7 +758,7 @@ public class Translator {
 		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
 		List<String> header = getHeaderDisplayNames(db, table, resultList);
 
-		WordResultConverter excelDC = WordResultConverter.getInstance(header);
+		WordResultConverter excelDC = WordResultConverter.getInstance(header, AirContext.getColumnsConfig(db, table));
 
 		return excelDC.export(resultList);
 	}
@@ -769,7 +769,7 @@ public class Translator {
 		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
 		List<String> header = getHeaderDisplayNames(db, table, resultList);
 
-		PDFResultConverter excelDC = PDFResultConverter.getInstance(header);
+		PDFResultConverter excelDC = PDFResultConverter.getInstance(header, AirContext.getColumnsConfig(db, table));
 
 		return excelDC.export(resultList);
 	}
@@ -780,7 +780,7 @@ public class Translator {
 		List<Map<String, Object>> resultList = getListMapResult(json, conditions);
 		List<String> header = getHeaderDisplayNames(db, table, resultList);
 
-		HtmlResultConverter excelDC = HtmlResultConverter.getInstance(header);
+		HtmlResultConverter excelDC = HtmlResultConverter.getInstance(header, AirContext.getColumnsConfig(db, table));
 
 		return excelDC.export(resultList);
 	}

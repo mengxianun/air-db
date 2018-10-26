@@ -1,5 +1,7 @@
 package com.mxy.air.db.ResultConverter;
 
+import com.mxy.air.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
@@ -12,16 +14,16 @@ import java.util.Map;
 
 public class HtmlResultConverter extends ConverterUtils {
 
-	List<String> headers;
 	private static final String TEMPLATE_FILENAME = "html_template.html"; // 模板文件名
 	private static final String TR = "<tr>${tr}</tr>"; // 模板文件名
 	private static final String TD = "<td>${td}</td>";
 
-	private HtmlResultConverter(List<String> header) {
+	private HtmlResultConverter(List<String> header, JSONObject config) {
 		this.headers = header;
+		this.config = config;
 	}
-	public static HtmlResultConverter getInstance(List<String> header) {
-		return new HtmlResultConverter(header);
+	public static HtmlResultConverter getInstance(List<String> header, JSONObject config) {
+		return new HtmlResultConverter(header, config);
 	}
 
 	public InputStream export(List<Map<String, Object>> data) throws Exception {
@@ -50,7 +52,11 @@ public class HtmlResultConverter extends ConverterUtils {
 		for (Map<String, Object> map : data) {
 			StringBuilder tds = new StringBuilder();
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				tds.append(replaceParams(TD, "td", entry.getValue().toString()));
+				if (entry.getValue() instanceof Map) {
+					//TODO
+				} else {
+					tds.append(replaceParams(TD, "td", buildColumn(entry.getKey(), entry.getValue())));
+				}
 			}
 			tableContent.append(replaceParams(TR, "tr", tds.toString()));
 		}

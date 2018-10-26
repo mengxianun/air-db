@@ -158,6 +158,10 @@ public class DataRenderer {
 						TableConfig.Association.Type associationType = AirContext.getAssociation(builder.db(),
 								parentTable, currentTable);
 
+						if (associationType == null) {
+							continue;
+						}
+
 						if (innerJoinTable.containsKey(currentTable)) {
 
 							switch (associationType) {
@@ -244,6 +248,11 @@ public class DataRenderer {
 						String currentTable = prefixJoinTables[k];
 						TableConfig.Association.Type associationType = AirContext.getAssociation(builder.db(),
 								parentTable, currentTable);
+
+						if (associationType == null) {
+							continue;
+						}
+
 						switch (associationType) {
 						case ONE_TO_ONE:
 						case MANY_TO_ONE:

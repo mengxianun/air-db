@@ -1,5 +1,6 @@
 package com.mxy.air.db.ResultConverter;
 
+import org.apache.commons.lang3.ObjectUtils.Null;
 import org.apache.poi.hssf.usermodel.HSSFCellStyle;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
@@ -58,7 +59,7 @@ public class ExcelResultConverter {
 			Map<String, Object> map = data.get(i);
 			int j = 0;
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				dataRow.createCell(j++).setCellValue(entry.getValue().toString());
+				dataRow.createCell(j++).setCellValue(entry.getValue() == null ? "" : entry.getValue().toString());
 			}
 		}
 		ByteArrayOutputStream os = new ByteArrayOutputStream();

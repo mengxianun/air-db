@@ -1,11 +1,5 @@
 package com.mxy.air.db.ResultConverter;
 
-import org.apache.commons.lang3.ObjectUtils.Null;
-import org.apache.poi.hssf.usermodel.HSSFCellStyle;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -13,17 +7,25 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-public class ExcelResultConverter {
+import org.apache.poi.hssf.usermodel.HSSFCellStyle;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+
+import com.mxy.air.json.JSONObject;
+
+public class ExcelResultConverter extends ConverterUtils {
 
 	List<String> headers;
 
-	private ExcelResultConverter(List<String> header) {
+	private ExcelResultConverter(List<String> header, JSONObject config) {
 		this.headers = header;
+		this.config = config;
 		this.init();
 		this.initStyle();
 	}
-	public static ExcelResultConverter getInstance(List<String> header) {
-		return new ExcelResultConverter(header);
+	public static ExcelResultConverter getInstance(List<String> header, JSONObject config) {
+		return new ExcelResultConverter(header, config);
 	}
 
 	private HSSFWorkbook wb;
@@ -59,7 +61,11 @@ public class ExcelResultConverter {
 			Map<String, Object> map = data.get(i);
 			int j = 0;
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				dataRow.createCell(j++).setCellValue(entry.getValue() == null ? "" : entry.getValue().toString());
+				if (entry.getValue() instanceof Map) {
+					//TODO
+				} else {
+					dataRow.createCell(j++).setCellValue(buildColumn(entry.getKey(), entry.getValue() == null ? "" : entry.getValue().toString()));
+				}
 			}
 		}
 		ByteArrayOutputStream os = new ByteArrayOutputStream();

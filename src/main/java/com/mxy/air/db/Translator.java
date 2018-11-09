@@ -621,6 +621,9 @@ public class Translator {
 			//			String[] header = columnsConfig.values().stream()
 			//					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
 			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			byteArrayOutputStream.write(0xef);
+			byteArrayOutputStream.write(0xbb);
+			byteArrayOutputStream.write(0xbf);
 			CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
 					new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
 			try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
@@ -693,6 +696,9 @@ public class Translator {
 					}
 				}
 				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+				byteArrayOutputStream.write(0xef);
+				byteArrayOutputStream.write(0xbb);
+				byteArrayOutputStream.write(0xbf);
 				CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
 						new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
 				try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {

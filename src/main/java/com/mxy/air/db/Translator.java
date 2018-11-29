@@ -29,8 +29,14 @@ import java.util.stream.Stream;
 
 import javax.sql.DataSource;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.slf4j.Logger;
@@ -585,55 +591,76 @@ public class Translator {
 		JSONObject jsonObject = parser.getObject();
 		String db = parser.getDb();
 		String table = parser.getTable();
-		if (parser.getTemplate() != null && parser.getTemplate() == Template.CSV) { // 导出CSV模板
-			JSONObject tableConfig = AirContext.getTableConfig(db, table);
-			String primaryKey = tableConfig.getString(TableConfig.PRIMARY_KEY);
-			JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
-			String[] columns = columnsConfig.keySet().toArray(new String[] {});
-			if (jsonObject.containsKey(Structure.FIELDS)) { // 指定了列
-				columns = jsonObject.getArray(FIELDS).toStringArray();
-			}
-			// CSV头部(列)
-			List<String> columnHeader = new ArrayList<>();
-			// CSV头部(列显示名称)
-			List<String> columnHeaderDisplay = new ArrayList<>();
-			for (String column : columns) {
-				if (column.equals(primaryKey)) { // CSV模板不导出主键
-					continue;
+		if (parser.getTemplate() != null) { // 导出CSV模板
+			if(parser.getTemplate() == Template.CSV || parser.getTemplate() == Template.EXCEL) {
+				JSONObject tableConfig = AirContext.getTableConfig(db, table);
+				String primaryKey = tableConfig.getString(TableConfig.PRIMARY_KEY);
+				JSONObject columnsConfig = tableConfig.getObject(TableConfig.COLUMNS);
+				String[] columns = columnsConfig.keySet().toArray(new String[] {});
+				if (jsonObject.containsKey(Structure.FIELDS)) { // 指定了列
+					columns = jsonObject.getArray(FIELDS).toStringArray();
 				}
-				columnHeader.add(column);
-				JSONObject columnConfig = columnsConfig.getObject(column);
-				String columnDisplay = columnConfig.getString(TableConfig.Column.DISPLAY);
-				if (columnConfig.containsKey(TableConfig.Column.CODE)) {
-					JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
-					StringBuilder builder = new StringBuilder();
-					builder.append(columnDisplay).append("(");
-					String[] codeValues = columnCode.keySet().stream().map(k -> k + ":" + columnCode.get(k))
-							.toArray(String[]::new);
-					builder.append(String.join(",", codeValues));
-					builder.append(")");
-					columnHeaderDisplay.add(builder.toString());
-				} else {
-					columnHeaderDisplay.add(columnDisplay);
+				// CSV头部(列)
+				List<String> columnHeader = new ArrayList<>();
+				// CSV头部(列显示名称)
+				List<String> columnHeaderDisplay = new ArrayList<>();
+				for (String column : columns) {
+					if (column.equals(primaryKey)) { // CSV模板不导出主键
+						continue;
+					}
+					columnHeader.add(column);
+					JSONObject columnConfig = columnsConfig.getObject(column);
+					String columnDisplay = columnConfig.getString(TableConfig.Column.DISPLAY);
+					if (columnConfig.containsKey(TableConfig.Column.CODE)) {
+						JSONObject columnCode = columnConfig.getObject(TableConfig.Column.CODE);
+						StringBuilder builder = new StringBuilder();
+						builder.append(columnDisplay).append("(");
+						String[] codeValues = columnCode.keySet().stream().map(k -> k + ":" + columnCode.get(k))
+								.toArray(String[]::new);
+						builder.append(String.join(",", codeValues));
+						builder.append(")");
+						columnHeaderDisplay.add(builder.toString());
+					} else {
+						columnHeaderDisplay.add(columnDisplay);
+					}
 				}
+				// CSV头部, 数据表每个列的DISPLAY
+				//			String[] header = columnsConfig.values().stream()
+				//					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
+				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+				if(parser.getTemplate() == Template.EXCEL) {
+					HSSFWorkbook wb = new HSSFWorkbook();
+					HSSFSheet sheet = wb.createSheet();
+					HSSFRow row = sheet.createRow(0);
+					HSSFRow row1 = sheet.createRow(1);
+					for (int i = 0; i < columnHeader.size(); i++) {
+						HSSFCell cell = row.createCell(i);
+						cell.setCellValue(columnHeader.get(i));
+						HSSFCell cell1 = row1.createCell(i);
+						cell1.setCellValue(columnHeaderDisplay.get(i));
+					}
+					wb.write(byteArrayOutputStream);
+					wb.close();
+				}else {
+					byteArrayOutputStream.write(0xef);
+					byteArrayOutputStream.write(0xbb);
+					byteArrayOutputStream.write(0xbf);
+					CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
+							new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
+					try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
+						icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
+						icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
+					}
+				}
+				return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 			}
-			// CSV头部, 数据表每个列的DISPLAY
-			//			String[] header = columnsConfig.values().stream()
-			//					.map(o -> ((JSONObject) o).getString(TableConfig.Column.DISPLAY)).toArray(String[]::new);
-			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-			byteArrayOutputStream.write(0xef);
-			byteArrayOutputStream.write(0xbb);
-			byteArrayOutputStream.write(0xbf);
-			CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
-					new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
-			try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
-				icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
-				icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
-			}
-			return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-		} else if (jsonObject.containsKey(Structure.RESULT)) { // 导出CSV数据
-			String result = jsonObject.getString(Structure.RESULT);
-			if (result.equalsIgnoreCase(Structure.Result.CSV.toString())) {
+		} else if (jsonObject.containsKey(Structure.RESULT)) { // 导出CSV|EXCEL数据
+			String result = jsonObject.getString(Structure.RESULT).toLowerCase();
+			String[] resultArr = new String[] {
+				Structure.Result.CSV.toString().toLowerCase(),
+				Structure.Result.EXCEL.toString().toLowerCase()
+			}; 
+			if (ArrayUtils.contains(resultArr, result)) {
 				JSON jsonResult = translateToJson(json, conditions);
 				List<Map<String, Object>> resultList = null;
 				if (jsonObject.containsKey(Structure.LIMIT)) { // 分页
@@ -647,12 +674,12 @@ public class Translator {
 					}
 				}
 				/*
-				 * CSV需要的格式数据
+				 * CSV|EXCEL需要的格式数据
 				 */
 				List<String[]> csvData = new ArrayList<>();
-				// CSV头部(列)
+				// CSV|EXCEL头部(列)
 				List<String> columnHeader = new ArrayList<>();
-				// CSV头部(列显示名称)
+				// CSV|EXCEL头部(列显示名称)
 				List<String> columnHeaderDisplay = new ArrayList<>();
 
 				if (resultList.size() > 0) {
@@ -695,16 +722,39 @@ public class Translator {
 								.collect(Collectors.toList());
 					}
 				}
+				
 				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-				byteArrayOutputStream.write(0xef);
-				byteArrayOutputStream.write(0xbb);
-				byteArrayOutputStream.write(0xbf);
-				CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
-						new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
-				try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
-					icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
-					icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
-					icsvWriter.writeAll(csvData);
+				
+				if(result.equals(Structure.Result.CSV.toString().toLowerCase())) {
+					byteArrayOutputStream.write(0xef);
+					byteArrayOutputStream.write(0xbb);
+					byteArrayOutputStream.write(0xbf);
+					CSVWriterBuilder csvWriterBuilder = new CSVWriterBuilder(
+							new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8));
+					try (ICSVWriter icsvWriter = csvWriterBuilder.build()) {
+						icsvWriter.writeNext(columnHeader.toArray(new String[] {}));
+						icsvWriter.writeNext(columnHeaderDisplay.toArray(new String[] {}));
+						icsvWriter.writeAll(csvData);
+					}
+				}else if(result.equals(Structure.Result.EXCEL.toString().toLowerCase())) {
+					HSSFWorkbook wb = new HSSFWorkbook();
+					HSSFSheet sheet = wb.createSheet();
+					List<String[]> copyData = csvData;
+					copyData.add(0,columnHeaderDisplay.toArray(new String[] {}));
+					copyData.add(0,columnHeader.toArray(new String[] {}));
+					int rows = copyData.size();
+					int cols = columnHeader.size();
+					for (int i = 0; i < rows; i++) {
+						HSSFRow row = sheet.createRow(i);
+						String[] rowData = copyData.get(i);
+						for (int j = 0; j < cols; j++) {
+							HSSFCell cell = row.createCell(i);
+							cell.setCellType(Cell.CELL_TYPE_STRING);
+							cell.setCellValue(rowData[j]);
+						}
+					}
+					wb.write(byteArrayOutputStream);
+					wb.close();
 				}
 				return new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
 			}

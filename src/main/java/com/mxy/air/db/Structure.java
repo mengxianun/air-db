@@ -2,11 +2,12 @@ package com.mxy.air.db;
 
 /**
  * Json结构
+ * 
  * @author mengxiangyun
  *
  */
 public enum Structure {
-	
+
 	/*
 	 * 操作类型
 	 */
@@ -51,12 +52,12 @@ public enum Structure {
 	 * 返回结果
 	 */
 	RESULT,
-	
+
 	/*
 	 * 模板
 	 */
 	TEMPLATE;
-	
+
 	/**
 	 * 操作类型
 	 */
@@ -95,7 +96,7 @@ public enum Structure {
 		 * 数据库表配置结构
 		 */
 		STRUCT;
-		
+
 		public static Type from(String name) {
 			for (Type type : values()) {
 				// 不区分大小写
@@ -106,13 +107,13 @@ public enum Structure {
 			return null;
 		}
 	}
-	
+
 	/**
 	 * 模板
 	 */
 	public enum Template {
 
-		CSV;
+		CSV, EXCEL;
 
 		public static Template from(String name) {
 			for (Template template : values()) {
@@ -174,7 +175,7 @@ public enum Structure {
 	 * 过滤条件
 	 */
 	public enum Where {
-		
+
 	}
 
 	/*
@@ -185,52 +186,43 @@ public enum Structure {
 		/*
 		 * 运算符
 		 */
-		EQUAL("=", "="),
-		NOT_EQUAL("!=", "<>"),
-		GT(">", ">"),
-		GTE(">=", ">="),
-		LT("<", "<"),
-		LTE("<=", "<="),
+		EQUAL("=", "="), NOT_EQUAL("!=", "<>"), GT(">", ">"), GTE(">=", ">="), LT("<", "<"), LTE("<=", "<="),
 		IN(",", "in"),
 		/*
 		 * op格式暂定未定
 		 */
-		NOT_IN("", "not in"),
-		BETWEEN("~", "between"),
-		LIKE("%=", "like"),
-		NOT_LIKE("!%=", "not like"),
-		
+		NOT_IN("", "not in"), BETWEEN("~", "between"), LIKE("%=", "like"), NOT_LIKE("!%=", "not like"),
+
 		NOT("!", "not"),
-		
+
 		/*
 		 * 连接符
 		 */
-		AND("and", "and"),
-		OR("or", "or");
-		
+		AND("and", "and"), OR("or", "or");
+
 		/*
 		 * 运算符号
 		 */
 		private String op;
-		
+
 		/*
 		 * 运算符对应的SQL写法
 		 */
 		private String sql;
-		
+
 		private Operator(String op, String sql) {
 			this.op = op;
 			this.sql = sql;
 		}
-		
+
 		public String op() {
 			return this.op;
 		}
-		
+
 		public String sql() {
 			return this.sql;
 		}
-		
+
 		public static Operator from(String op) {
 			for (Operator operator : values()) {
 				if (operator.op().equalsIgnoreCase(op)) {
@@ -241,7 +233,7 @@ public enum Structure {
 		}
 
 	}
-	
+
 	/**
 	 * 排序
 	 */
@@ -254,17 +246,17 @@ public enum Structure {
 		 * 降序
 		 */
 		DESC("desc", "desc"),
-		
+
 		/*
 		 * 升序简写方式
 		 */
 		PLUS("+", "asc"),
-		
+
 		/*
 		 * 降序简写方式
 		 */
 		MINUS("-", "desc");
-		
+
 		/*
 		 * 名称
 		 */
@@ -286,14 +278,14 @@ public enum Structure {
 		public String sql() {
 			return this.sqlStyle;
 		}
-		
+
 	}
 
 	/*
 	 * 返回结果
 	 */
 	public enum Result {
-		CSV
+		CSV,EXCEL
 	}
 
 }
